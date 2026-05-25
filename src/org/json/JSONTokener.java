@@ -1,4 +1,4 @@
-package org.json;
+package src.org.json;
 
 import java.io.*;
 import java.nio.charset.Charset;

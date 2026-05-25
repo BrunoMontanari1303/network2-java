@@ -1,4 +1,4 @@
-package broker.model;
+package src.broker.model;
 
 public enum MessageType {
     CREATE_TOPIC,

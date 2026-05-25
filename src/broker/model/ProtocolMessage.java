@@ -1,15 +1,17 @@
-package broker.model;
-import org.json.JSONObject;
+package src.broker.model;
+import src.org.json.JSONObject;
 
 public class ProtocolMessage {
     private MessageType type;
     private String clientId;
     private String topic;
     private String payload;
+    private Long timestamp;
+    
     private String certificate;
     private String signature;
     private String encryptedKey;
-    private Long timestamp;
+    
 
     public ProtocolMessage() {
     }

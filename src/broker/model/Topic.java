@@ -1,4 +1,4 @@
-package broker.model;
+package src.broker.model;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;

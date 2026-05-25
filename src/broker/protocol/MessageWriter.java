@@ -1,7 +1,6 @@
-package broker.protocol;
+package src.broker.protocol;
 
-import broker.model.ProtocolMessage;
-
+import src.broker.model.ProtocolMessage;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.Socket;

@@ -1,0 +1,33 @@
+# Java
+*.class
+*.log
+
+# Eclipse
+.metadata/
+bin/
+.settings/
+.project
+.classpath
+
+# NetBeans
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+
+# Maven
+target/
+
+# Gradle
+.gradle/
+build/
+
+# IDEs gerais
+.vscode/
+.idea/
+*.iml
+
+# Sistema
+.DS_Store
+Thumbs.db

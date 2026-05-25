@@ -1,7 +1,7 @@
-package broker.protocol;
+package src.broker.protocol;
 
-import broker.model.ProtocolMessage;
-import org.json.JSONObject;
+import src.broker.model.ProtocolMessage;
+import src.org.json.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;

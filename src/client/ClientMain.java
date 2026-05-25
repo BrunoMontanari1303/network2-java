@@ -1,4 +1,4 @@
-package client;
+package src.client;
 
 import java.util.Scanner;
 
@@ -7,6 +7,7 @@ public class ClientMain {
     public static void main(String[] args) throws Exception {
 
         Client client = new Client();
+        
         Scanner scanner = new Scanner(System.in);
 
         client.connect("localhost", 5000);
@@ -18,8 +19,8 @@ public class ClientMain {
 
             System.out.println("\n---MENU---");
             System.out.println("1 - Criar topico");
-            System.out.println("2 - Increver em topico");
-            System.out.println("3 - Publicar mensagem");
+            System.out.println("2 - Inscrever em topico");
+            System.out.println("3 - Entrar em topico");
             System.out.println("4 - Sair");
             System.out.print("Escolha: ");
 
@@ -30,7 +31,9 @@ public class ClientMain {
                 case 1:
                     System.out.print("Nome do topico: ");
                     String topicoCriar = scanner.nextLine();
+                    
                     client.createTopic(topicoCriar);
+                    client.subscribe(topicoCriar);
                     client.esperarResposta();
                     break;
 
@@ -42,14 +45,24 @@ public class ClientMain {
                     break;
                     
                 case 3:
-                    System.out.print("Nome do topico: ");
-                    String topicoPub = scanner.nextLine();
-
-                    System.out.print("Mensagem: ");
-                    String mensagem = scanner.nextLine();
-
-                    client.publish(topicoPub, mensagem);
-                    client.esperarResposta();
+                    if (client.getTopicosInscritos().isEmpty()){
+                        System.out.println("Voce não está inscrito em nenhum topico.");
+                        break;
+                    }
+                    System.out.println("\nSeus topicos: ");
+                    
+                    int i = 1;
+                    for(String t : client.getTopicosInscritos()){
+                        System.out.println(i + " - " + t);
+                        i++;
+                    }
+                    System.out.print("Escolha: ");
+                    int escolha = Integer.parseInt(scanner.nextLine());
+                    
+                    String topicoSelecionado = client.getTopicosInscritos()
+                            .toArray(new String[0])[escolha - 1];
+                    
+                    entrarNoTopico(scanner, client, topicoSelecionado);
                     break;
 
                 case 4:
@@ -63,7 +76,26 @@ public class ClientMain {
         } while (opcao != 4);
 
         scanner.close();
+        
+        
 
     }
+    
+    public static void entrarNoTopico(Scanner scanner, Client client, String topico) throws Exception {
+
+    System.out.println("\n--- Tópico: " + topico + " ---");
+    System.out.println("Digite sua mensagem (/sair para voltar)");
+
+    while (true) {
+        System.out.print("> ");
+        String msg = scanner.nextLine();
+
+        if (msg.equalsIgnoreCase("/sair")) {
+            break;
+        }
+
+        client.publish(topico, msg);
+    }
+}
 
 }
