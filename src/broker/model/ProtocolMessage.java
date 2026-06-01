@@ -1,0 +1,145 @@
+package broker.model;
+import org.json.JSONObject;
+
+public class ProtocolMessage {
+    private MessageType type;
+    private String clientId;
+    private String topic;
+    private String payload;
+    private String certificate;
+    private String signature;
+    private String encryptedKey;
+    private Long timestamp;
+
+    public ProtocolMessage() {
+        
+    }
+
+    public ProtocolMessage(MessageType type, String clientId, String topic, String payload) { //construtor mais usado
+        this.type = type;
+        this.clientId = clientId;
+        this.topic = topic;
+        this.payload = payload;
+        this.timestamp = System.currentTimeMillis();
+    }
+
+    public ProtocolMessage( //construtor completo 
+            MessageType type,
+            String clientId,
+            String topic,
+            String payload,
+            String certificate,
+            String signature,
+            String encryptedKey,
+            Long timestamp
+    ) {
+        this.type = type;
+        this.clientId = clientId;
+        this.topic = topic;
+        this.payload = payload;
+        this.certificate = certificate;
+        this.signature = signature;
+        this.encryptedKey = encryptedKey;
+        this.timestamp = timestamp;
+    }
+
+    public JSONObject toJson() { //converte Java para JSON
+        JSONObject json = new JSONObject(); //cria jSON
+
+        json.put("type", type != null ? type.name() : JSONObject.NULL); //Put adicionando os dados no JSON por meio de operadro ternario
+        json.put("clientId", clientId != null ? clientId : JSONObject.NULL);
+        json.put("topic", topic != null ? topic : JSONObject.NULL);
+        json.put("payload", payload != null ? payload : JSONObject.NULL);
+        json.put("certificate", certificate != null ? certificate : JSONObject.NULL);
+        json.put("signature", signature != null ? signature : JSONObject.NULL);
+        json.put("encryptedKey", encryptedKey != null ? encryptedKey : JSONObject.NULL);
+        json.put("timestamp", timestamp != null ? timestamp : JSONObject.NULL);
+
+        return json;
+    }
+
+    public static ProtocolMessage fromJson(JSONObject json) { //pega JSON e transforma em objeto em Java 
+        ProtocolMessage message = new ProtocolMessage();
+
+        if (!json.isNull("type")) {
+            message.setType(MessageType.valueOf(json.getString("type"))); //converte String para enum
+        }
+
+        message.setClientId(json.optString("clientId", null));
+        message.setTopic(json.optString("topic", null));
+        message.setPayload(json.optString("payload", null));
+        message.setCertificate(json.optString("certificate", null));
+        message.setSignature(json.optString("signature", null));
+        message.setEncryptedKey(json.optString("encryptedKey", null));
+
+        if (!json.isNull("timestamp")) {
+            message.setTimestamp(json.getLong("timestamp"));
+        }
+
+        return message;
+    }
+
+    public MessageType getType() {
+        return type;
+    }
+
+    public void setType(MessageType type) {
+        this.type = type;
+    }
+
+    public String getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(String clientId) {
+        this.clientId = clientId;
+    }
+
+    public String getTopic() {
+        return topic;
+    }
+
+    public void setTopic(String topic) {
+        this.topic = topic;
+    }
+
+    public String getPayload() {
+        return payload;
+    }
+
+    public void setPayload(String payload) {
+        this.payload = payload;
+    }
+
+    public String getCertificate() {
+        return certificate;
+    }
+
+    public void setCertificate(String certificate) {
+        this.certificate = certificate;
+    }
+
+    public String getSignature() {
+        return signature;
+    }
+
+    public void setSignature(String signature) {
+        this.signature = signature;
+    }
+
+    public String getEncryptedKey() {
+        return encryptedKey;
+    }
+
+    public void setEncryptedKey(String encryptedKey) {
+        this.encryptedKey = encryptedKey;
+    }
+
+    public Long getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(Long timestamp) {
+        this.timestamp = timestamp;
+    }
+}
