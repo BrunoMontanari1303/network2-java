@@ -1,22 +1,23 @@
-package src.broker.model;
-import src.org.json.JSONObject;
+package broker.model;
+
+import org.json.JSONObject;
 
 public class ProtocolMessage {
+
     private MessageType type;
     private String clientId;
     private String topic;
     private String payload;
-    private Long timestamp;
-    
     private String certificate;
     private String signature;
     private String encryptedKey;
-    
+    private Long timestamp;
 
     public ProtocolMessage() {
+
     }
 
-    public ProtocolMessage(MessageType type, String clientId, String topic, String payload) {
+    public ProtocolMessage(MessageType type, String clientId, String topic, String payload) { //construtor mais usado
         this.type = type;
         this.clientId = clientId;
         this.topic = topic;
@@ -24,7 +25,7 @@ public class ProtocolMessage {
         this.timestamp = System.currentTimeMillis();
     }
 
-    public ProtocolMessage(
+    public ProtocolMessage( //construtor completo 
             MessageType type,
             String clientId,
             String topic,
@@ -44,10 +45,10 @@ public class ProtocolMessage {
         this.timestamp = timestamp;
     }
 
-    public JSONObject toJson() {
-        JSONObject json = new JSONObject();
+    public JSONObject toJson() { //converte Java para JSON
+        JSONObject json = new JSONObject(); //cria jSON
 
-        json.put("type", type != null ? type.name() : JSONObject.NULL);
+        json.put("type", type != null ? type.name() : JSONObject.NULL); //Put adicionando os dados no JSON por meio de operadro ternario
         json.put("clientId", clientId != null ? clientId : JSONObject.NULL);
         json.put("topic", topic != null ? topic : JSONObject.NULL);
         json.put("payload", payload != null ? payload : JSONObject.NULL);
@@ -59,11 +60,11 @@ public class ProtocolMessage {
         return json;
     }
 
-    public static ProtocolMessage fromJson(JSONObject json) {
+    public static ProtocolMessage fromJson(JSONObject json) { //pega JSON e transforma em objeto em Java 
         ProtocolMessage message = new ProtocolMessage();
 
         if (!json.isNull("type")) {
-            message.setType(MessageType.valueOf(json.getString("type")));
+            message.setType(MessageType.valueOf(json.getString("type"))); //converte String para enum
         }
 
         message.setClientId(json.optString("clientId", null));
@@ -143,4 +144,5 @@ public class ProtocolMessage {
     public void setTimestamp(Long timestamp) {
         this.timestamp = timestamp;
     }
+
 }

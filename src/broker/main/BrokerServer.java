@@ -1,4 +1,4 @@
-package src.broker.main;
+package broker.main;
 
 import java.io.IOException;
 import java.net.ServerSocket;

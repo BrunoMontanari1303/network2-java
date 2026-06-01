@@ -1,9 +1,9 @@
-package src.broker.main;
+package broker.main;
 
-import src.broker.model.MessageType;
-import src.broker.model.ProtocolMessage;
-import src.broker.protocol.MessageReader;
-import src.broker.protocol.MessageWriter;
+import broker.model.MessageType;
+import broker.model.ProtocolMessage;
+import broker.protocol.MessageReader;
+import broker.protocol.MessageWriter;
 
 import java.io.IOException;
 import java.net.Socket;

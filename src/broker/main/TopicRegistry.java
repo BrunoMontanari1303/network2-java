@@ -1,7 +1,7 @@
-package src.broker.main;
+package broker.main;
 
-import src.broker.model.MessageType;
-import src.broker.model.ProtocolMessage;
+import broker.model.MessageType;
+import broker.model.ProtocolMessage;
 
 import java.util.Map;
 import java.util.Set;
