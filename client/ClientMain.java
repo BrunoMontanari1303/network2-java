@@ -14,6 +14,7 @@ public class ClientMain {
         client.connect("localhost", 5000);
         //inicia a thread para receber mensagem
         client.startListening();
+        client.requestPendingMessages();
 
         int opcao;
 

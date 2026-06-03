@@ -7,9 +7,11 @@ import broker.protocol.MessageWriter;
 
 import java.io.IOException;
 import java.net.Socket;
+import java.util.List;
 
-public class ClientHandler implements Runnable{
-	private final Socket socket;
+public class ClientHandler implements Runnable {
+
+    private final Socket socket;
     private final TopicRegistry topicRegistry;
     private final MessageReader reader;
     private final MessageWriter writer;
@@ -33,6 +35,11 @@ public class ClientHandler implements Runnable{
                     break;
                 }
 
+                if (message.getClientId() != null && !message.getClientId().isBlank()) {
+                    this.clientId = message.getClientId();
+                    topicRegistry.registerOnlineClient(this.clientId, this);
+                }
+
                 processMessage(message);
             }
         } catch (Exception e) {
@@ -43,14 +50,10 @@ public class ClientHandler implements Runnable{
     }
 
     private void processMessage(ProtocolMessage message) {
-        if (message.getClientId() != null && !message.getClientId().isBlank()) {
-            this.clientId = message.getClientId();
-        }
-
         MessageType type = message.getType();
 
         if (type == null) {
-            sendError("Tipo de mensagem invalido.");
+            sendError("Tipo de mensagem inválido.");
             return;
         }
 
@@ -71,12 +74,16 @@ public class ClientHandler implements Runnable{
                 handlePublish(message);
                 break;
 
+            case DOWNLOAD_PENDING:
+                handleDownloadPending();
+                break;
+
             case DISCONNECT:
                 handleDisconnect();
                 break;
 
             default:
-                sendError("Operacao nao suportada pelo broker.");
+                sendError("Operação não suportada pelo broker.");
         }
     }
 
@@ -91,9 +98,9 @@ public class ClientHandler implements Runnable{
         boolean created = topicRegistry.createTopic(topic);
 
         if (created) {
-            sendSuccess(topic, "Topico criado com sucesso.");
+            sendSuccess(topic, "Tópico criado com sucesso.");
         } else {
-            sendError(topic, "Topico ja existe.");
+            sendError(topic, "Tópico já existe.");
         }
     }
 
@@ -101,16 +108,16 @@ public class ClientHandler implements Runnable{
         String topic = message.getTopic();
 
         if (topic == null || topic.isBlank()) {
-            sendError("Nome do topico é obrigatorio.");
+            sendError("Nome do tópico é obrigatório.");
             return;
         }
 
-        boolean subscribed = topicRegistry.subscribe(topic, this);
+        boolean subscribed = topicRegistry.subscribe(topic, clientId);
 
         if (subscribed) {
-            sendSuccess(topic, "Inscricao realizada com sucesso.");
+            sendSuccess(topic, "Inscrição realizada com sucesso.");
         } else {
-            sendError(topic, "Topico nao existe.");
+            sendError(topic, "Tópico não existe.");
         }
     }
 
@@ -118,16 +125,16 @@ public class ClientHandler implements Runnable{
         String topic = message.getTopic();
 
         if (topic == null || topic.isBlank()) {
-            sendError("Nome do topico e obrigatorio.");
+            sendError("Nome do tópico é obrigatório.");
             return;
         }
 
-        boolean unsubscribed = topicRegistry.unsubscribe(topic, this);
+        boolean unsubscribed = topicRegistry.unsubscribe(topic, clientId);
 
         if (unsubscribed) {
-            sendSuccess(topic, "Inscricao removida com sucesso.");
+            sendSuccess(topic, "Inscrição removida com sucesso.");
         } else {
-            sendError(topic, "Topico nao existe.");
+            sendError(topic, "Tópico não existe.");
         }
     }
 
@@ -135,16 +142,16 @@ public class ClientHandler implements Runnable{
         String topic = message.getTopic();
 
         if (topic == null || topic.isBlank()) {
-            sendError("Nome do topico e obrigatorio.");
+            sendError("Nome do tópico é obrigatório.");
             return;
         }
 
         if (!topicRegistry.topicExists(topic)) {
-            sendError(topic, "Topico nao existe.");
+            sendError(topic, "Tópico não existe.");
             return;
         }
-        
-        if (!topicRegistry.isSubscribed(topic, this)) {
+
+        if (!topicRegistry.isSubscribed(topic, clientId)) {
             sendError(topic, "Cliente não inscrito no tópico. Publicação bloqueada.");
             return;
         }
@@ -153,8 +160,25 @@ public class ClientHandler implements Runnable{
         sendSuccess(topic, "Mensagem publicada com sucesso.");
     }
 
+    private void handleDownloadPending() {
+        List<ProtocolMessage> pending = topicRegistry.downloadPendingMessages(clientId);
+
+        for (ProtocolMessage msg : pending) {
+            send(msg);
+        }
+
+        ProtocolMessage response = new ProtocolMessage(
+                MessageType.DOWNLOAD_OK,
+                "broker",
+                null,
+                "Download de mensagens pendentes concluído."
+        );
+        response.setTimestamp(System.currentTimeMillis());
+        send(response);
+    }
+
     private void handleDisconnect() {
-        sendSuccess(null, "Desconexao realizada.");
+        sendSuccess(null, "Desconexão realizada.");
         closeConnection();
     }
 
@@ -190,7 +214,7 @@ public class ClientHandler implements Runnable{
 
     private void closeConnection() {
         try {
-            topicRegistry.removeClientFromAllTopics(this);
+            topicRegistry.unregisterOnlineClient(clientId);
             socket.close();
         } catch (IOException ignored) {
         }

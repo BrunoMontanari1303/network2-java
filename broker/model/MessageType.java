@@ -10,6 +10,8 @@ public enum MessageType {
     SUCCESS, //mensagem de sucesso enviado pelo broker 
     ERROR, //mensagem de erro enviado ppelo broker 
     AUTH, //tipo relacionado a autenticação
-    DISCONNECT //solicita desconexão
+    DISCONNECT, //solicita desconexão
+    DOWNLOAD_PENDING, //informa que esta pendente a mensagem
+    DOWNLOAD_OK //informa que a mensagem foi baixada
 
 }

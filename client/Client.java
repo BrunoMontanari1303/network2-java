@@ -37,8 +37,6 @@ public class Client {
     public void subscribe(String topic) throws IOException {
         ProtocolMessage msg = new ProtocolMessage(MessageType.SUBSCRIBE, "client1", topic, null);
         writer.send(msg);
-
-        topicosInscritos.add(topic);
     }
 
     //metodo para publicar uma mensagem em um topico 
@@ -58,8 +56,6 @@ public class Client {
     public void unsubscribe(String topic) throws IOException {
         ProtocolMessage msg = new ProtocolMessage(MessageType.UNSUBSCRIBE, "client1", topic, null);
         writer.send(msg);
-
-        topicosInscritos.remove(topic);
     }
 
     //metodo responsavel por ficar ouvido mensagens do broker 
@@ -75,20 +71,32 @@ public class Client {
 
                     switch (msg.getType()) {
                         case DELIVER:
-                            System.out.println("[" + msg.getTopic() + "] " + msg.getPayload());
+                        	System.out.println("[" + msg.getTopic() + "] " + msg.getClientId() + ": " + msg.getPayload());
                             break;
 
                         case SUCCESS:
-                            System.out.println("\n" + msg.getPayload());
+                        	System.out.println("[BROKER] " + msg.getPayload());
+
+                            if ("Inscrição realizada com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
+                                topicosInscritos.add(msg.getTopic());
+                            }                          
+                            if ("Inscrição removida com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
+                                topicosInscritos.remove(msg.getTopic());
+                            }
+                            
                             break;
 
                         case ERROR:
-                            System.out.println("\n" + msg.getPayload());
+                        	System.out.println("[ERRO] " + msg.getPayload());
+                            break;
+                            
+                        case DOWNLOAD_OK:
+                            System.out.println("[BROKER] " + msg.getPayload());
                             break;
 
                         default:
-                            System.out.println("\nMensagem: " + msg.getPayload());
-
+                        	System.out.println("[INFO] Mensagem recebida: " + msg.toJson().toString());
+                        	break;
                     }
 
                 }
@@ -97,6 +105,17 @@ public class Client {
                 System.out.println("Desconectado do broker.");
             }
         }).start();
+    }
+    
+    //envia solicitacao para receber mensagens pendentes
+    public void requestPendingMessages() {
+        ProtocolMessage msg = new ProtocolMessage(
+                MessageType.DOWNLOAD_PENDING,
+                "client1",
+                null,
+                null
+        );
+        writer.send(msg);
     }
 
     //pausa de 300 milisengudnos pro broker responder
