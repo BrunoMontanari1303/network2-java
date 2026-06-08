@@ -11,8 +11,19 @@ public class BrokerServer {
     public BrokerServer(int port) {
         this.port = port;
         this.topicRegistry = new TopicRegistry();
-    }
 
+        
+    System.out.println(
+        topicRegistry.signClientCertificate(
+            "Stefani",
+            "MINHA_CHAVE"
+        )
+    );
+}
+    
+    public TopicRegistry getTopicRegistry() {
+        return topicRegistry;
+    }
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.println("Broker iniciado na porta " + port);

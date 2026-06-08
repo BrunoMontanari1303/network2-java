@@ -2,6 +2,9 @@ package broker.main;
 
 import broker.model.MessageType;
 import broker.model.ProtocolMessage;
+import broker.security.BrokerCrypto;
+import broker.security.CertificateAuthority;
+
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,6 +17,27 @@ public class TopicRegistry {
     private final Map<String, Set<String>> topicSubscribers = new ConcurrentHashMap<>();
     private final Map<String, ClientHandler> onlineClients = new ConcurrentHashMap<>();
     private final Map<String, Map<String, List<ProtocolMessage>>> pendingMessages = new ConcurrentHashMap<>();
+    private final BrokerCrypto crypto = new BrokerCrypto();
+
+    public java.security.PublicKey getBrokerPublicKey() {
+        return crypto.getPublicKey();
+    }
+
+
+    public String signCertificate(String clientId, String publicKey) {
+
+        CertificateAuthority ca = new CertificateAuthority(crypto.getPrivateKey());
+
+        String data = clientId + publicKey;
+
+        return ca.sign(data);
+    }
+        
+
+
+    public BrokerCrypto getCrypto() {
+        return crypto;
+    }
 
     public boolean createTopic(String topic) {
         return topicSubscribers.putIfAbsent(topic, ConcurrentHashMap.newKeySet()) == null;
@@ -55,10 +79,19 @@ public class TopicRegistry {
         return subscribers.contains(clientId);
     }
 
-    public void registerOnlineClient(String clientId, ClientHandler handler) {
-        if (clientId != null && !clientId.isBlank()) {
-            onlineClients.put(clientId, handler);
-        }
+    public boolean registerOnlineClient(String clientId, ClientHandler handler) {
+
+    if (clientId == null || clientId.isBlank()) {
+        return false;
+    }
+
+    if (onlineClients.containsKey(clientId)) {
+        return false;
+    }
+
+    onlineClients.put(clientId, handler);
+    return true;
+
     }
 
     public void unregisterOnlineClient(String clientId) {
@@ -127,5 +160,31 @@ public class TopicRegistry {
         }
 
         return result;
+    }
+
+    public String signClientCertificate(String clientId, String publicKey) {
+
+        try {
+
+            java.security.Signature sig =
+                    java.security.Signature.getInstance(
+                            "SHA256withRSA"
+                    );
+
+            sig.initSign(
+                    crypto.getPrivateKey()
+            );
+
+            String data = clientId + publicKey;
+
+            sig.update(data.getBytes());
+
+            return java.util.Base64
+                    .getEncoder()
+                    .encodeToString(sig.sign());
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

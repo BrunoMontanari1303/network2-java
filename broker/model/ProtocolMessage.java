@@ -1,5 +1,6 @@
 package broker.model;
 
+import broker.security.Certificate;
 import org.json.JSONObject;
 
 public class ProtocolMessage {
@@ -8,16 +9,17 @@ public class ProtocolMessage {
     private String clientId;
     private String topic;
     private String payload;
-    private String certificate;
-    private String signature;
-    private String encryptedKey;
+
+    private Certificate certificate;   // certificado do cliente
+    private String signature;          // assinatura digital
+    private String encryptedKey;       // (opcional futuro)
     private Long timestamp;
 
     public ProtocolMessage() {
-
     }
 
-    public ProtocolMessage(MessageType type, String clientId, String topic, String payload) { //construtor mais usado
+    // construtor básico (mais usado no broker/client)
+    public ProtocolMessage(MessageType type, String clientId, String topic, String payload) {
         this.type = type;
         this.clientId = clientId;
         this.topic = topic;
@@ -25,12 +27,13 @@ public class ProtocolMessage {
         this.timestamp = System.currentTimeMillis();
     }
 
-    public ProtocolMessage( //construtor completo 
+    // construtor completo (auth / segurança)
+    public ProtocolMessage(
             MessageType type,
             String clientId,
             String topic,
             String payload,
-            String certificate,
+            Certificate certificate,
             String signature,
             String encryptedKey,
             Long timestamp
@@ -45,14 +48,32 @@ public class ProtocolMessage {
         this.timestamp = timestamp;
     }
 
-    public JSONObject toJson() { //converte Java para JSON
-        JSONObject json = new JSONObject(); //cria jSON
+    // ================= JSON =================
 
-        json.put("type", type != null ? type.name() : JSONObject.NULL); //Put adicionando os dados no JSON por meio de operadro ternario
+    public JSONObject toJson() {
+        JSONObject json = new JSONObject();
+
+        json.put("type", type != null ? type.name() : JSONObject.NULL);
         json.put("clientId", clientId != null ? clientId : JSONObject.NULL);
         json.put("topic", topic != null ? topic : JSONObject.NULL);
         json.put("payload", payload != null ? payload : JSONObject.NULL);
-        json.put("certificate", certificate != null ? certificate : JSONObject.NULL);
+
+        if (certificate != null) {
+
+            JSONObject certJson = new JSONObject();
+
+            certJson.put("clientId",
+                    certificate.getClientId());
+
+            certJson.put("publicKey",
+                    certificate.getPublicKey());
+
+            certJson.put("signature",
+                    certificate.getSignature());
+
+            json.put("certificate", certJson);
+        }
+
         json.put("signature", signature != null ? signature : JSONObject.NULL);
         json.put("encryptedKey", encryptedKey != null ? encryptedKey : JSONObject.NULL);
         json.put("timestamp", timestamp != null ? timestamp : JSONObject.NULL);
@@ -60,17 +81,30 @@ public class ProtocolMessage {
         return json;
     }
 
-    public static ProtocolMessage fromJson(JSONObject json) { //pega JSON e transforma em objeto em Java 
+    public static ProtocolMessage fromJson(JSONObject json) {
         ProtocolMessage message = new ProtocolMessage();
 
         if (!json.isNull("type")) {
-            message.setType(MessageType.valueOf(json.getString("type"))); //converte String para enum
+            message.setType(MessageType.valueOf(json.getString("type")));
         }
 
         message.setClientId(json.optString("clientId", null));
         message.setTopic(json.optString("topic", null));
         message.setPayload(json.optString("payload", null));
-        message.setCertificate(json.optString("certificate", null));
+
+        if (!json.isNull("certificate")) {
+
+            JSONObject certJson = json.getJSONObject("certificate");
+
+            Certificate cert = new Certificate(
+                    certJson.getString("clientId"),
+                    certJson.getString("publicKey"),
+                    certJson.getString("signature")
+            );
+
+            message.setCertificate(cert);
+        }
+
         message.setSignature(json.optString("signature", null));
         message.setEncryptedKey(json.optString("encryptedKey", null));
 
@@ -80,6 +114,8 @@ public class ProtocolMessage {
 
         return message;
     }
+
+    // ================= GETTERS / SETTERS =================
 
     public MessageType getType() {
         return type;
@@ -113,11 +149,11 @@ public class ProtocolMessage {
         this.payload = payload;
     }
 
-    public String getCertificate() {
+    public Certificate getCertificate() {
         return certificate;
     }
 
-    public void setCertificate(String certificate) {
+    public void setCertificate(Certificate certificate) {
         this.certificate = certificate;
     }
 
@@ -144,5 +180,4 @@ public class ProtocolMessage {
     public void setTimestamp(Long timestamp) {
         this.timestamp = timestamp;
     }
-
 }

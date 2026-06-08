@@ -7,6 +7,8 @@ import broker.protocol.MessageWriter;
 
 import java.io.IOException;
 import java.net.Socket;
+//import java.security.Signature;
+import broker.security.Certificate;
 import java.util.List;
 
 public class ClientHandler implements Runnable {
@@ -15,6 +17,7 @@ public class ClientHandler implements Runnable {
     private final TopicRegistry topicRegistry;
     private final MessageReader reader;
     private final MessageWriter writer;
+    private volatile boolean running = true;
 
     private String clientId;
 
@@ -28,28 +31,79 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            while (true) {
+            while (running) {
+
                 ProtocolMessage message = reader.read();
 
                 if (message == null) {
+                    running = false;
                     break;
                 }
 
-                if (message.getClientId() != null && !message.getClientId().isBlank()) {
-                    this.clientId = message.getClientId();
-                    topicRegistry.registerOnlineClient(this.clientId, this);
+                if (clientId == null) {
+
+                if (message.getType() != MessageType.AUTH_REQUEST) {
+                    sendError("Cliente nao autenticado. Conexao recusada.");
+                    closeConnection();
+                    break;
                 }
 
+                Certificate cert = message.getCertificate();
+
+                if (cert == null) {
+                    sendError("Certificado ausente. Conexao recusada.");
+                    closeConnection();
+                    break;
+                }
+
+                if (!validateCertificate(cert)) {
+                    sendError("Certificado invalido. Conexao recusada.");
+                    closeConnection();
+                    break;
+                }
+
+                String id = cert.getClientId();
+
+                if (id == null || id.isBlank()) {
+                    sendError("ClientId inválido.");
+                    closeConnection();
+                    break;
+                }
+
+                if (!topicRegistry.registerOnlineClient(id, this)) {
+                    sendError("ID ja em uso. Conexao encerrada.");
+                    closeConnection();
+                    running = false;
+                    break;
+                }
+
+                this.clientId = id;
+
+                ProtocolMessage response = new ProtocolMessage(
+                    MessageType.AUTH_OK,
+                    "broker",
+                    null,
+                    "Autenticado com sucesso."
+                    );
+
+                    send(response);
+                    continue;
+                }
+                
+
+                // 🔁 depois que autenticou, processa normalmente
                 processMessage(message);
             }
+
         } catch (Exception e) {
-            System.out.println("Cliente desconectado: " + socket.getInetAddress() + " - " + e.getMessage());
+            System.out.println("Cliente desconectado: " + e.getMessage());
         } finally {
             closeConnection();
         }
     }
 
     private void processMessage(ProtocolMessage message) {
+        System.out.println("Recebido: " + message.getType());
         MessageType type = message.getType();
 
         if (type == null) {
@@ -213,14 +267,37 @@ public class ClientHandler implements Runnable {
     }
 
     private void closeConnection() {
+        running = false;
+
         try {
             topicRegistry.unregisterOnlineClient(clientId);
             socket.close();
         } catch (IOException ignored) {
         }
     }
-
     public String getClientId() {
         return clientId;
     }
-}
+
+    
+    private boolean validateCertificate(Certificate cert) {
+
+        if (cert == null) {
+            return false;
+        }
+
+        if (cert.getClientId() == null) {
+            return false;
+        }
+
+        if (cert.getPublicKey() == null) {
+            return false;
+        }
+
+        if (cert.getSignature() == null) {
+            return false;
+        }
+
+        return true;
+    }
+} 
