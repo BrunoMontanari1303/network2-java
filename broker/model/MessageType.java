@@ -1,5 +1,4 @@
 package broker.model;
-//todos os tipos de mensagens que podem ser trocadas entre cliente e broker
 
 public enum MessageType {
 
@@ -10,9 +9,19 @@ public enum MessageType {
     DELIVER,
     SUCCESS,
     ERROR,
+    
+    REGISTER_REQUEST,
+    REGISTER_OK,
+    REGISTER_FAIL,
+    LOGIN_REQUEST,
+    LOGIN_OK,
+    LOGIN_FAIL,
 
     AUTH_REQUEST,
+    AUTH_CHALLENGE,
+    AUTH_RESPONSE,
     AUTH_OK,
+    AUTH_FAIL,
 
     DISCONNECT,
     DOWNLOAD_PENDING,

@@ -5,25 +5,17 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 public class BrokerServer {
-	private final int port;
+
+    private final int port;
     private final TopicRegistry topicRegistry;
+    private final UserRegistry userRegistry;
 
     public BrokerServer(int port) {
         this.port = port;
         this.topicRegistry = new TopicRegistry();
-
-        
-    System.out.println(
-        topicRegistry.signClientCertificate(
-            "Stefani",
-            "MINHA_CHAVE"
-        )
-    );
-}
-    
-    public TopicRegistry getTopicRegistry() {
-        return topicRegistry;
+        this.userRegistry = new UserRegistry();
     }
+
     public void start() {
         try (ServerSocket serverSocket = new ServerSocket(port)) {
             System.out.println("Broker iniciado na porta " + port);
@@ -32,7 +24,7 @@ public class BrokerServer {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("Novo cliente conectado: " + clientSocket.getInetAddress());
 
-                ClientHandler clientHandler = new ClientHandler(clientSocket, topicRegistry);
+                ClientHandler clientHandler = new ClientHandler(clientSocket, topicRegistry, userRegistry);
                 Thread thread = new Thread(clientHandler);
                 thread.start();
             }

@@ -9,6 +9,8 @@ public class ProtocolMessage {
     private String clientId;
     private String topic;
     private String payload;
+    private String username;
+    private String password;
 
     private Certificate certificate;   // certificado do cliente
     private String signature;          // assinatura digital
@@ -57,6 +59,8 @@ public class ProtocolMessage {
         json.put("clientId", clientId != null ? clientId : JSONObject.NULL);
         json.put("topic", topic != null ? topic : JSONObject.NULL);
         json.put("payload", payload != null ? payload : JSONObject.NULL);
+        json.put("username", username != null ? username : JSONObject.NULL);
+        json.put("password", password != null ? password : JSONObject.NULL);
 
         if (certificate != null) {
 
@@ -91,6 +95,8 @@ public class ProtocolMessage {
         message.setClientId(json.optString("clientId", null));
         message.setTopic(json.optString("topic", null));
         message.setPayload(json.optString("payload", null));
+        message.setUsername(json.optString("username", null));
+        message.setPassword(json.optString("password", null));
 
         if (!json.isNull("certificate")) {
 
@@ -133,7 +139,23 @@ public class ProtocolMessage {
         this.clientId = clientId;
     }
 
-    public String getTopic() {
+    public String getUsername() {
+		return username;
+	}
+
+	public void setUsername(String username) {
+		this.username = username;
+	}
+
+	public String getPassword() {
+		return password;
+	}
+
+	public void setPassword(String password) {
+		this.password = password;
+	}
+
+	public String getTopic() {
         return topic;
     }
 

@@ -18,194 +18,305 @@ import java.util.Set;
 
 public class Client {
 
-    private Socket socket;
-    private MessageReader reader;
-    private MessageWriter writer;
-    private String clientId;
-    private KeyPair keyPair;
-    private ClientGUI gui;
-    private final Set<String> topicosInscritos = new HashSet<>(); //armazena os topico que o cliente está inscrito
+	private Socket socket;
+	private MessageReader reader;
+	private MessageWriter writer;
+	private String clientId;
+	private KeyPair keyPair;
+	private ClientGUI gui;
+	private volatile boolean authenticated = false;
+	private final Set<String> topicosInscritos = java.util.Collections.synchronizedSet(new HashSet<>());
+	
+	// conecta o cliente ao broker
+	public void connect(String host, int port) throws IOException {
 
+		socket = new Socket(host, port);
+		reader = new MessageReader(socket);
+		writer = new MessageWriter(socket);
 
-    //conecta o cliente ao broker
-    public void connect(String host, int port) throws IOException {
+		System.out.println("Conectado ao broker");
 
-        socket = new Socket(host, port);
-        reader = new MessageReader(socket);
-        writer = new MessageWriter(socket);
+	}
 
-        System.out.println("Conectado ao broker");
+	public void setGUI(ClientGUI gui) {
+		this.gui = gui;
+	}
 
-    }
+	public Client(String clientId) {
+	    this.clientId = clientId;
+	}
 
-    public void setGUI(ClientGUI gui) {
-        this.gui = gui;
-    }
+	// retorna os topico que o cliente está inscrito
+	public Set<String> getTopicosInscritos() {
+		return topicosInscritos;
+	}
 
-    public Client(String clientId) {
-        this.clientId = clientId;
-        generateKeys();
-    }
+	// metodo para se inscrever em um topico
+	public void subscribe(String topic) throws IOException {
+		if (!authenticated) {
+			System.out.println("Cliente ainda não autenticado.");
+			return;
+		}
+		ProtocolMessage msg = new ProtocolMessage(MessageType.SUBSCRIBE, clientId, topic, null);
+		writer.send(msg);
+	}
 
-    //retorna os topico que o cliente está inscrito
-    public Set<String> getTopicosInscritos() {
-        return topicosInscritos;
-    }
+	// metodo para publicar uma mensagem em um topico
+	public void publish(String topic, String content) throws IOException {
+		if (!authenticated) {
+			System.out.println("Cliente ainda não autenticado.");
+			return;
+		}
+		ProtocolMessage msg = new ProtocolMessage(MessageType.PUBLISH, clientId, topic, content);
+		writer.send(msg);
 
-    public PublicKey getPublicKey() {
-        return keyPair.getPublic();
+	}
 
-    }
+	// metodo para criar um novo topico
+	public void createTopic(String topic) throws IOException {
+		if (!authenticated) {
+			System.out.println("Cliente ainda não autenticado.");
+			return;
+		}
+		ProtocolMessage msg = new ProtocolMessage(MessageType.CREATE_TOPIC, clientId, topic, null);
+		writer.send(msg);
+	}
 
-    //metodo para se inscrever em um topico
-    public void subscribe(String topic) throws IOException {
-        ProtocolMessage msg = new ProtocolMessage(MessageType.SUBSCRIBE, clientId, topic, null);
-        writer.send(msg);
-    }
+	// metodo para remover cliente de um topico
+	public void unsubscribe(String topic) throws IOException {
+		if (!authenticated) {
+			System.out.println("Cliente ainda não autenticado.");
+			return;
+		}
+		ProtocolMessage msg = new ProtocolMessage(MessageType.UNSUBSCRIBE, clientId, topic, null);
+		writer.send(msg);
+	}
+	
+	public void register(String username, String password) {
+	    this.clientId = username;
+	    ensureKeysForUser(username);
+	    authenticated = false;
 
-    //metodo para publicar uma mensagem em um topico 
-    public void publish(String topic, String content) throws IOException {
-        ProtocolMessage msg = new ProtocolMessage(MessageType.PUBLISH, clientId, topic, content);
-        writer.send(msg);
+	    Certificate cert = new Certificate(
+	            username,
+	            getPublicKeyString(),
+	            ""
+	    );
 
-    }
+	    ProtocolMessage msg = new ProtocolMessage(MessageType.REGISTER_REQUEST, null, null, null);
+	    msg.setUsername(username);
+	    msg.setPassword(password);
+	    msg.setCertificate(cert);
 
-    //metodo para criar um novo topico 
-    public void createTopic(String topic) throws IOException {
-        ProtocolMessage msg = new ProtocolMessage(MessageType.CREATE_TOPIC, clientId, topic, null);
-        writer.send(msg);
-    }
+	    writer.send(msg);
+	}
 
-    //metodo para remover cliente de um topico
-    public void unsubscribe(String topic) throws IOException {
-        ProtocolMessage msg = new ProtocolMessage(MessageType.UNSUBSCRIBE, clientId, topic, null);
-        writer.send(msg);
-    }
+	public void login(String username, String password) {
+		authenticated = false;
+		this.clientId = username;
+		ensureKeysForUser(username);
+		
+		ProtocolMessage msg = new ProtocolMessage(MessageType.LOGIN_REQUEST, null, null, null);
+		msg.setUsername(username);
+		msg.setPassword(password);
 
-    //metodo responsavel por ficar ouvido mensagens do broker 
-    public void startListening() {
-        new Thread(() -> {
-            try {
-                while (true) {
-                    ProtocolMessage msg = reader.read();
+		writer.send(msg);
+	}	
 
-                    if (msg == null) {
-                        break;
-                    }
+	// metodo responsavel por ficar ouvido mensagens do broker
+	public void startListening() {
+		new Thread(() -> {
+			try {
+				while (true) {
+					ProtocolMessage msg = reader.read();
 
-                    switch (msg.getType()) {
-                        case DELIVER:
-                        	String texto =
-        "[" + msg.getTopic() + "] "
-        + msg.getClientId()
-        + ": "
-        + msg.getPayload();
+					if (msg == null) {
+						break;
+					}
 
-    System.out.println(texto);
+					switch (msg.getType()) {
+					case DELIVER:
+						String texto = "[" + msg.getTopic() + "] " + msg.getClientId() + ": " + msg.getPayload();
 
-    if(gui != null){
-        gui.adicionarMensagem(texto);
-    }
+						System.out.println(texto);
 
-    break;
+						if (gui != null) {
+							gui.adicionarMensagem(texto);
+						}
 
-                           
+						break;
 
-                        case SUCCESS:
-                        	System.out.println("[BROKER] " + msg.getPayload());
+					case SUCCESS:
+					    System.out.println("[BROKER] " + msg.getPayload());
 
-                            if ("Inscrição realizada com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
-                                topicosInscritos.add(msg.getTopic());
-                            }                          
-                            if ("Inscrição removida com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
-                                topicosInscritos.remove(msg.getTopic());
-                            }
-                            
-                            break;
+					    if (gui != null) {
+					        gui.adicionarMensagem("[BROKER] " + msg.getPayload());
+					    }
 
-                        case ERROR:
-                        	System.out.println("[ERRO] " + msg.getPayload());
-                            break;
-                            
-                        case DOWNLOAD_OK:
-                            System.out.println("[BROKER] " + msg.getPayload());
-                            break;
+					    if ("Inscricao realizada com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
+					        topicosInscritos.add(msg.getTopic());
 
-                        case AUTH_OK:
-                            System.out.println("Autenticado com sucesso!");
-                            break;
+					        if (gui != null) {
+					            gui.atualizarListaTopicos();
+					        }
+					    }
 
-                        default:
-                        	System.out.println("[INFO] Mensagem recebida: " + msg.toJson().toString());
-                        	break;
-                    }
+					    if ("Inscricao removida com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
+					        topicosInscritos.remove(msg.getTopic());
 
-                }
-                //verifica erro de conexão
-            } catch (IOException e) {
-                System.out.println("Desconectado do broker.");
-            }
-        }).start();
-    }
-    
-    //envia solicitacao para receber mensagens pendentes
-    public void requestPendingMessages() {
-        ProtocolMessage msg = new ProtocolMessage(
-                MessageType.DOWNLOAD_PENDING,
-                clientId,
-                null,
-                null
-        );
-        writer.send(msg);
-    }
+					        if (gui != null) {
+					            gui.atualizarListaTopicos();
+					        }
+					    }
 
-    //pausa de 300 milisengudnos pro broker responder
-    public void esperarResposta() {
-        try {
-            Thread.sleep(300);
+					    break;
 
-            //interrompe a thread caso acontecça erro 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
+					case ERROR:
+						System.out.println("[ERRO] " + msg.getPayload());
+						if (gui != null) {
+							gui.adicionarMensagem("[ERRO] " + msg.getPayload());
+						}
+						break;
 
-    private void generateKeys() {
-    try {
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-        generator.initialize(2048);
-        this.keyPair = generator.generateKeyPair();
-        } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-    }   
+					case DOWNLOAD_OK:
+						System.out.println("[BROKER] " + msg.getPayload());
+						break;
 
-    public void authenticate(Certificate cert) {
+					case REGISTER_OK:
+					    System.out.println("[CADASTRO] " + msg.getPayload());
 
-        ProtocolMessage msg = new ProtocolMessage( MessageType.AUTH_REQUEST,clientId,null,null);
+					    if (msg.getCertificate() != null) {
+					        ClientCertificateStore.saveCertificate(clientId, msg.getCertificate());
+					    }
 
-        msg.setCertificate(cert);
+					    if (gui != null) {
+					        gui.onRegisterSuccess(msg.getPayload());
+					    }
+					    break;
 
-        writer.send(msg);
-    }
+					case REGISTER_FAIL:
+						System.out.println("[CADASTRO FAIL] " + msg.getPayload());
+						if (gui != null) {
+							gui.onRegisterFail(msg.getPayload());
+						}
+						break;
 
-    public String getPublicKeyString() {
+					case LOGIN_OK:
+					    System.out.println("[LOGIN] " + msg.getPayload());
 
-    return Base64.getEncoder()
-            .encodeToString(
-                    keyPair.getPublic().getEncoded()
-            );
-    }
+					    if (gui != null) {
+					        gui.onLoginSuccess(msg.getPayload());
+					    }
 
-    public Certificate createCertificate() {
+					    if (!ClientCertificateStore.exists(clientId)) {
+					        System.out.println("[AUTH FAIL] Certificado do cliente nao encontrado.");
+					        if (gui != null) {
+					            gui.onAuthFail("Certificado do cliente nao encontrado.");
+					        }
+					        break;
+					    }
 
-    String publicKey =
-            getPublicKeyString();
+					    Certificate cert = ClientCertificateStore.loadCertificate(clientId);
+					    authenticate(cert);
+					    break;
 
-    return new Certificate(
-            clientId,
-            publicKey,
-            "ASSINADO_PELO_BROKER"
-    );
-}
+					case LOGIN_FAIL:
+						System.out.println("[LOGIN FAIL] " + msg.getPayload());
+						if (gui != null) {
+							gui.onLoginFail(msg.getPayload());
+						}
+						break;
+
+					case AUTH_OK:
+						System.out.println("Autenticado com sucesso!");
+						authenticated = true;
+						requestPendingMessages();
+
+						if (gui != null) {
+							gui.onAuthSuccess(msg.getPayload());
+						}
+						break;
+
+					case AUTH_FAIL:
+						System.out.println("[AUTH FAIL] " + msg.getPayload());
+						if (gui != null) {
+							gui.onAuthFail(msg.getPayload());
+						}
+						break;
+
+					case AUTH_CHALLENGE:
+						String challenge = msg.getPayload();
+						String signedChallenge = signChallenge(challenge);
+						ProtocolMessage response = new ProtocolMessage(MessageType.AUTH_RESPONSE, clientId, null, null);
+						response.setSignature(signedChallenge);
+						writer.send(response);
+						System.out.println("Desafio assinado e enviado ao broker.");
+						break;
+
+					default:
+						System.out.println("[INFO] Mensagem recebida: " + msg.toJson().toString());
+						break;
+					}
+
+				}
+				// verifica erro de conexão
+			} catch (IOException e) {
+				System.out.println("Desconectado do broker.");
+			}
+		}).start();
+	}
+
+	// envia solicitacao para receber mensagens pendentes
+	public void requestPendingMessages() {
+		ProtocolMessage msg = new ProtocolMessage(MessageType.DOWNLOAD_PENDING, clientId, null, null);
+		writer.send(msg);
+	}
+
+	public void authenticate(Certificate cert) {
+
+		ProtocolMessage msg = new ProtocolMessage(MessageType.AUTH_REQUEST, clientId, null, null);
+
+		msg.setCertificate(cert);
+
+		writer.send(msg);
+	}
+
+	public String getPublicKeyString() {
+
+		return Base64.getEncoder().encodeToString(keyPair.getPublic().getEncoded());
+	}
+
+	public Certificate createCertificate(String assinatura) {
+		String publicKey = getPublicKeyString();
+
+		return new Certificate(clientId, publicKey, assinatura);
+	}
+
+	private String signChallenge(String challenge) {
+		return broker.security.CryptoUtils.sign(challenge, keyPair.getPrivate());
+	}
+	
+	private void generateKeys() {
+	    try {
+	        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+	        generator.initialize(2048);
+	        this.keyPair = generator.generateKeyPair();
+	    } catch (Exception e) {
+	        throw new RuntimeException(e);
+	    }
+	}
+
+	private void ensureKeysForUser(String username) {
+	    try {
+	        if (ClientKeyStore.keyPairExists(username)) {
+	            this.keyPair = ClientKeyStore.loadKeyPair(username);
+	        } else {
+	            generateKeys();
+	            ClientKeyStore.saveKeyPair(username, keyPair);
+	        }
+	    } catch (Exception e) {
+	        throw new RuntimeException("Erro ao preparar chaves do usuário", e);
+	    }
+	}
+	
 }

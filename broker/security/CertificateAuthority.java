@@ -1,30 +1,37 @@
 package broker.security;
 
-import java.security.*;
-
+import java.security.PrivateKey;
+import java.security.PublicKey;
 
 public class CertificateAuthority {
 
-    private final PrivateKey brokerPrivateKey;
+    private static final String PRIVATE_KEY_FILE = "ca_private.key";
+    private static final String PUBLIC_KEY_FILE = "ca_public.key";
 
-    public CertificateAuthority(PrivateKey brokerPrivateKey) {
-        this.brokerPrivateKey = brokerPrivateKey;
+    private static final CertificateAuthority INSTANCE = new CertificateAuthority();
+
+    private final PrivateKey privateKey;
+    private final PublicKey publicKey;
+
+    private CertificateAuthority() {
+        this.privateKey = KeyIO.loadPrivateKey(PRIVATE_KEY_FILE);
+        this.publicKey = KeyIO.loadPublicKey(PUBLIC_KEY_FILE);
     }
-    
-    public String sign(String data) {
 
-        try{
-            Signature signature = Signature.getInstance("SHA256withRSA");
-            signature.initSign(brokerPrivateKey);
-            signature.update(data.getBytes());
-
-            byte[] signed = signature.sign();
-            return java.util.Base64.getEncoder().encodeToString(signed);
-
-            } catch (Exception e) {
-            throw new RuntimeException(e);
-        
-        }
+    public static CertificateAuthority getInstance() {
+        return INSTANCE;
     }
-    
+
+    public String signCertificate(String clientId, String publicKeyBase64) {
+        String data = clientId + publicKeyBase64;
+        return CryptoUtils.sign(data, privateKey);
+    }
+
+    public PublicKey getPublicKey() {
+        return publicKey;
+    }
+
+    public PrivateKey getPrivateKey() {
+        return privateKey;
+    }
 }
