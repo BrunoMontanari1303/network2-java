@@ -124,6 +124,10 @@ public class ClientHandler implements Runnable {
             case DISCONNECT:
                 handleDisconnect();
                 break;
+                
+            case LIST_TOPICS_REQUEST:
+                handleListTopics();
+                break;
 
             default:
                 sendError("Operacao nao suportada pelo broker.");
@@ -403,6 +407,20 @@ public class ClientHandler implements Runnable {
     private void handleDisconnect() {
         sendSuccess(null, "Desconexao realizada.");
         closeConnection();
+    }
+    
+    private void handleListTopics() {
+        java.util.List<String> topics = topicRegistry.getAllTopics();
+
+        ProtocolMessage response = new ProtocolMessage(
+                MessageType.LIST_TOPICS_RESPONSE,
+                "broker",
+                null,
+                "Lista de tópicos carregada."
+        );
+        response.setTopics(topics);
+        response.setTimestamp(System.currentTimeMillis());
+        send(response);
     }
 
     private boolean validateCertificate(Certificate cert) {

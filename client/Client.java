@@ -26,6 +26,7 @@ public class Client {
 	private ClientGUI gui;
 	private volatile boolean authenticated = false;
 	private final Set<String> topicosInscritos = java.util.Collections.synchronizedSet(new HashSet<>());
+	private final Set<String> todosOsTopicos = java.util.Collections.synchronizedSet(new HashSet<>());
 	
 	// conecta o cliente ao broker
 	public void connect(String host, int port) throws IOException {
@@ -173,6 +174,10 @@ public class Client {
 								gui.adicionarMensagem("[BROKER] Tópico criado com sucesso.");
 							}
 						}
+						
+						if ("Topico criado com sucesso.".equals(msg.getPayload())) {
+						    requestAllTopics();
+						}
 
 						break;
 
@@ -236,6 +241,7 @@ public class Client {
 						System.out.println("Autenticado com sucesso!");
 						authenticated = true;
 						requestPendingMessages();
+						requestAllTopics();
 
 						if (gui != null) {
 							gui.onAuthSuccess(msg.getPayload());
@@ -257,6 +263,19 @@ public class Client {
 						writer.send(response);
 						System.out.println("Desafio assinado e enviado ao broker.");
 						break;
+						
+					case LIST_TOPICS_RESPONSE:
+					    todosOsTopicos.clear();
+
+					    if (msg.getTopics() != null) {
+					        todosOsTopicos.addAll(msg.getTopics());
+					    }
+
+					    if (gui != null) {
+					        gui.atualizarListaTodosTopicos();
+					        gui.adicionarMensagem("[BROKER] Lista de todos os tópicos atualizada.");
+					    }
+					    break;
 
 					default:
 						System.out.println("[INFO] Mensagem recebida: " + msg.toJson().toString());
@@ -322,6 +341,20 @@ public class Client {
 	    } catch (Exception e) {
 	        throw new RuntimeException("Erro ao preparar chaves do usuário", e);
 	    }
+	}
+	
+	public void requestAllTopics() {
+	    ProtocolMessage msg = new ProtocolMessage(
+	            MessageType.LIST_TOPICS_REQUEST,
+	            clientId,
+	            null,
+	            null
+	    );
+	    writer.send(msg);
+	}
+	
+	public Set<String> getTodosOsTopicos() {
+	    return todosOsTopicos;
 	}
 	
 }

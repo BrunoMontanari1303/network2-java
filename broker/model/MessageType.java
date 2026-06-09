@@ -25,5 +25,7 @@ public enum MessageType {
 
     DISCONNECT,
     DOWNLOAD_PENDING,
-    DOWNLOAD_OK
+    DOWNLOAD_OK,
+    LIST_TOPICS_REQUEST,
+    LIST_TOPICS_RESPONSE
 }

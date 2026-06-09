@@ -23,6 +23,7 @@ public class ClientGUI extends JFrame {
     private JTextField campoTopico;
     private JTextField campoMensagem;
     private JComboBox<String> comboTopicos;
+    private JComboBox<String> comboTodosTopicos;
     private JButton btnCriarTopico;
     private JButton btnInscrever;
     private JButton btnDesinscrever;
@@ -119,19 +120,28 @@ public class ClientGUI extends JFrame {
         topo.add(painelTopico);
         topo.add(painelBotoesTopico);
 
-        JPanel rodape = new JPanel(new BorderLayout(5, 5));
+        JPanel rodape = new JPanel(new GridLayout(3, 1, 5, 5));
 
         comboTopicos = new JComboBox<>();
+        comboTodosTopicos = new JComboBox<>();
         campoMensagem = new JTextField();
         btnEnviar = new JButton("Enviar");
 
-        JPanel painelSelecaoTopico = new JPanel(new BorderLayout(5, 5));
-        painelSelecaoTopico.add(new JLabel("Tópico inscrito:"), BorderLayout.WEST);
-        painelSelecaoTopico.add(comboTopicos, BorderLayout.CENTER);
+        JPanel painelInscritos = new JPanel(new BorderLayout(5, 5));
+        painelInscritos.add(new JLabel("Tópicos inscritos:"), BorderLayout.WEST);
+        painelInscritos.add(comboTopicos, BorderLayout.CENTER);
 
-        rodape.add(painelSelecaoTopico, BorderLayout.NORTH);
-        rodape.add(campoMensagem, BorderLayout.CENTER);
-        rodape.add(btnEnviar, BorderLayout.EAST);
+        JPanel painelTodos = new JPanel(new BorderLayout(5, 5));
+        painelTodos.add(new JLabel("Todos os tópicos:"), BorderLayout.WEST);
+        painelTodos.add(comboTodosTopicos, BorderLayout.CENTER);
+
+        JPanel painelEnvio = new JPanel(new BorderLayout(5, 5));
+        painelEnvio.add(campoMensagem, BorderLayout.CENTER);
+        painelEnvio.add(btnEnviar, BorderLayout.EAST);
+
+        rodape.add(painelInscritos);
+        rodape.add(painelTodos);
+        rodape.add(painelEnvio);
 
         painel.add(topo, BorderLayout.NORTH);
         painel.add(new JScrollPane(areaMensagens), BorderLayout.CENTER);
@@ -140,7 +150,11 @@ public class ClientGUI extends JFrame {
         btnCriarTopico.addActionListener(e -> acaoCriarTopico());
         btnInscrever.addActionListener(e -> acaoInscrever());
         btnDesinscrever.addActionListener(e -> acaoDesinscrever());
-        btnAtualizarTopicos.addActionListener(e -> atualizarListaTopicos());
+        btnAtualizarTopicos.addActionListener(e -> {
+            atualizarListaTopicos();
+            atualizarListaTodosTopicos();
+            client.requestAllTopics();
+        });
         btnEnviar.addActionListener(e -> acaoEnviarMensagem());
 
         return painel;
@@ -286,6 +300,18 @@ public class ClientGUI extends JFrame {
 
             for (String topico : topicos) {
                 comboTopicos.addItem(topico);
+            }
+        });
+    }
+    
+    public void atualizarListaTodosTopicos() {
+        SwingUtilities.invokeLater(() -> {
+            comboTodosTopicos.removeAllItems();
+
+            Set<String> topicos = client.getTodosOsTopicos();
+
+            for (String topico : topicos) {
+                comboTodosTopicos.addItem(topico);
             }
         });
     }

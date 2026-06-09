@@ -11,6 +11,8 @@ public class ProtocolMessage {
     private String payload;
     private String username;
     private String password;
+    
+    private java.util.List<String> topics;
 
     private Certificate certificate;   // certificado do cliente
     private String signature;          // assinatura digital
@@ -61,6 +63,7 @@ public class ProtocolMessage {
         json.put("payload", payload != null ? payload : JSONObject.NULL);
         json.put("username", username != null ? username : JSONObject.NULL);
         json.put("password", password != null ? password : JSONObject.NULL);
+        json.put("topics", topics != null ? topics : JSONObject.NULL);
 
         if (certificate != null) {
 
@@ -116,6 +119,17 @@ public class ProtocolMessage {
 
         if (!json.isNull("timestamp")) {
             message.setTimestamp(json.getLong("timestamp"));
+        }
+        
+        if (!json.isNull("topics")) {
+            java.util.List<String> topics = new java.util.ArrayList<>();
+            org.json.JSONArray array = json.getJSONArray("topics");
+
+            for (int i = 0; i < array.length(); i++) {
+                topics.add(array.getString(i));
+            }
+
+            message.setTopics(topics);
         }
 
         return message;
@@ -201,5 +215,13 @@ public class ProtocolMessage {
 
     public void setTimestamp(Long timestamp) {
         this.timestamp = timestamp;
+    }
+    
+    public java.util.List<String> getTopics() {
+        return topics;
+    }
+
+    public void setTopics(java.util.List<String> topics) {
+        this.topics = topics;
     }
 }

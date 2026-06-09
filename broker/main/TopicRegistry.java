@@ -137,5 +137,11 @@ public class TopicRegistry {
         }
 
         return result;
-    }   
+    }
+    
+    public java.util.List<String> getAllTopics() {
+        java.util.List<String> topics = new java.util.ArrayList<>(topicSubscribers.keySet());
+        java.util.Collections.sort(topics);
+        return topics;
+    }
 }
