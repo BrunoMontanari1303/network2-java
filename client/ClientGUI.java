@@ -232,11 +232,12 @@ public class ClientGUI extends JFrame {
     }
 
     private void acaoEnviarMensagem() {
-        Object selecionado = comboTopicos.getSelectedItem();
+
+        String topico = campoTopico.getText().trim();
         String mensagem = campoMensagem.getText().trim();
 
-        if (selecionado == null) {
-            adicionarMensagem("[GUI] Selecione um tópico inscrito.");
+        if (topico.isEmpty()) {
+            adicionarMensagem("[GUI] Informe o tópico.");
             return;
         }
 
@@ -244,8 +245,6 @@ public class ClientGUI extends JFrame {
             adicionarMensagem("[GUI] Digite uma mensagem.");
             return;
         }
-
-        String topico = selecionado.toString();
 
         try {
             client.publish(topico, mensagem);

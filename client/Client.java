@@ -147,29 +147,34 @@ public class Client {
 						break;
 
 					case SUCCESS:
-					    System.out.println("[BROKER] " + msg.getPayload());
 
-					    if (gui != null) {
-					        gui.adicionarMensagem("[BROKER] " + msg.getPayload());
-					    }
+						System.out.println("[BROKER] " + msg.getPayload());
 
-					    if ("Inscricao realizada com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
-					        topicosInscritos.add(msg.getTopic());
+						if ("Inscricao realizada com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
+							topicosInscritos.add(msg.getTopic());
 
-					        if (gui != null) {
-					            gui.atualizarListaTopicos();
-					        }
-					    }
+							if (gui != null) {
+								gui.atualizarListaTopicos();
+								gui.adicionarMensagem("[BROKER] Inscrito no tópico: " + msg.getTopic());
+							}
+						}
 
-					    if ("Inscricao removida com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
-					        topicosInscritos.remove(msg.getTopic());
+						if ("Inscricao removida com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
+							topicosInscritos.remove(msg.getTopic());
 
-					        if (gui != null) {
-					            gui.atualizarListaTopicos();
-					        }
-					    }
+							if (gui != null) {
+								gui.atualizarListaTopicos();
+								gui.adicionarMensagem("[BROKER] Saiu do tópico: " + msg.getTopic());
+							}
+						}
 
-					    break;
+						if ("Topico criado com sucesso.".equals(msg.getPayload())) {
+							if (gui != null) {
+								gui.adicionarMensagem("[BROKER] Tópico criado com sucesso.");
+							}
+						}
+
+						break;
 
 					case ERROR:
 						System.out.println("[ERRO] " + msg.getPayload());
