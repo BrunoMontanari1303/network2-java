@@ -10,9 +10,11 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class TopicRegistry {
+    
 
     private final Map<String, Set<String>> topicSubscribers = new ConcurrentHashMap<>();
     private final Map<String, ClientHandler> onlineClients = new ConcurrentHashMap<>();
+    // Armazena mensagens pendentes para clientes offline.
     private final Map<String, Map<String, List<ProtocolMessage>>> pendingMessages = new ConcurrentHashMap<>();
 
 
@@ -77,32 +79,40 @@ public class TopicRegistry {
         }
     }
 
+    
     public void publish(String topic, ProtocolMessage originalMessage) { 
+
+        // Obtém todos os clientes inscritos no tópico informado.
         Set<String> subscribers = topicSubscribers.get(topic);
 
         if (subscribers == null || subscribers.isEmpty()) {
             return;
         }
-
+        // Percorre cada inscrito no tópico.
         for (String subscriberId : subscribers) { // cria o modelo da mensagem de entrega
+            // Cria a mensagem que será entregue para os inscritos.
             ProtocolMessage deliverMessage = new ProtocolMessage(
                     MessageType.DELIVER,
                     originalMessage.getClientId(),
                     topic,
                     originalMessage.getPayload()
             );
+            
             deliverMessage.setTimestamp(System.currentTimeMillis());
 
+            // Verifica se o inscrito está online.
             ClientHandler onlineHandler = onlineClients.get(subscriberId);
 
+            // Cliente online recebe imediatamente.
             if (onlineHandler != null) {
                 onlineHandler.send(deliverMessage);
+                // Cliente offline mensagem é armazenada para download futuro.
             } else {
                 bufferMessage(subscriberId, topic, deliverMessage);
             }
         }
     }
-
+    // Cria automaticamente a estrutura: cliente -> tópico -> lista de mensagens e adiciona a nova mensagem ao buffer.
     private void bufferMessage(String clientId, String topic, ProtocolMessage message) {
         pendingMessages
                 .computeIfAbsent(clientId, k -> new ConcurrentHashMap<>())
@@ -110,7 +120,9 @@ public class TopicRegistry {
                 .add(message);
     }
 
+  
     public List<ProtocolMessage> downloadPendingMessages(String clientId) { //Bufferização de mensagens, manda as mensagnes pendentes para os clientes 
+          // Busca todas as mensagens pendentes que pertecem ao cliente.
         Map<String, List<ProtocolMessage>> clientPending = pendingMessages.get(clientId);
 
         if (clientPending == null || clientPending.isEmpty()) {
@@ -119,10 +131,12 @@ public class TopicRegistry {
 
         List<ProtocolMessage> result = new ArrayList<>();
 
+        // Junta mensagens de todos os tópicos em uma única lista para envio.
         for (List<ProtocolMessage> messages : clientPending.values()) {
             result.addAll(messages);
         }
 
+        // Remove as mensagens do buffer, pois já foram entregues ao cliente.
         pendingMessages.remove(clientId);
         return result;
     }

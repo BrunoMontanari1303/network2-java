@@ -95,6 +95,7 @@ public class Client {
 		writer.send(msg);
 	}
 	
+	// metodo para registrar cliente de um topico
 	public void register(String username, String password) {
 	    this.clientId = username;
 	    ensureKeysForUser(username);
@@ -241,7 +242,9 @@ public class Client {
 
 					case AUTH_OK:
 						System.out.println("Autenticado com sucesso!");
+						// Cliente autenticado com sucesso.
 						authenticated = true;
+						// Solicita imediatamente todas as mensagens pendentes armazenadas.
 						requestPendingMessages();
 						requestAllTopics();
 
@@ -258,10 +261,16 @@ public class Client {
 						break;
 
 					case AUTH_CHALLENGE:
+						// Recebe o desafio aleatório enviado pelo broker
 						String challenge = msg.getPayload();
+						// Assina o desafio usando a chave privada do cliente.
+    					// Somente o dono da chave privada consegue gerar esta assinatura corretamente.
 						String signedChallenge = signChallenge(challenge);
+						 // Cria a resposta ao desafio
 						ProtocolMessage response = new ProtocolMessage(MessageType.AUTH_RESPONSE, clientId, null, null);
+						// Coloca a assinatura gerada
 						response.setSignature(signedChallenge);
+						// Envia a resposta para o broker
 						writer.send(response);
 						System.out.println("Desafio assinado e enviado ao broker.");
 						break;
@@ -298,12 +307,17 @@ public class Client {
 		writer.send(msg);
 	}
 
+	// Solicita ao broker todas as mensagens que ficaram armazenadas enquanto o cliente estava desconectado.
+	// Envia ao broker o certificado digital do cliente.
+	// O broker irá verificar se este certificado foi realmente assinado pela Autoridade Certificadora (CA).
 	public void authenticate(Certificate cert) {
 
 		ProtocolMessage msg = new ProtocolMessage(MessageType.AUTH_REQUEST, clientId, null, null);
 
+		// Anexa o certificado do cliente na mensagem
 		msg.setCertificate(cert);
 
+		 // Envia para o broker iniciar a autenticação
 		writer.send(msg);
 	}
 

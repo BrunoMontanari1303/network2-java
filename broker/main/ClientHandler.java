@@ -118,6 +118,7 @@ public class ClientHandler implements Runnable {
                 break;
 
             case DOWNLOAD_PENDING:
+                // Cliente pediu suas mensagens pendentes.
                 handleDownloadPending();
                 break;
 
@@ -218,7 +219,7 @@ public class ClientHandler implements Runnable {
             closeConnection();
             return;
         }
-
+        // Recebe o certificado enviado pelo cliente
         Certificate cert = message.getCertificate();
 
         if (cert == null) {
@@ -227,6 +228,8 @@ public class ClientHandler implements Runnable {
             return;
         }
 
+        // Verifica se o certificado é válido e foi
+        // assinado pela Autoridade Certificadora.
         if (!validateCertificate(cert)) {
             sendAuthFail("Certificado invalido.");
             closeConnection();
@@ -248,8 +251,11 @@ public class ClientHandler implements Runnable {
         }
 
         this.pendingCertificate = cert;
+        // Gera um valor aleatório que servirá como desafio.
+        // Este valor será assinado pelo cliente.
         this.pendingChallenge = UUID.randomUUID().toString();
 
+        // Envia o desafio para o cliente provar que possui a chave privada correspondente ao certificado.
         ProtocolMessage challenge = new ProtocolMessage(
                 MessageType.AUTH_CHALLENGE,
                 "broker",
@@ -275,8 +281,10 @@ public class ClientHandler implements Runnable {
             return;
         }
 
+        // Obtém a chave pública que está armazenada dentro do certificado do cliente.
         PublicKey clientPublicKey = CryptoUtils.publicKeyFromBase64(pendingCertificate.getPublicKey());
 
+        // Verifica se a assinatura enviada pelo cliente realmente corresponde ao desafio gerado anteriormente.
         boolean valid = CryptoUtils.verify(pendingChallenge, signedChallenge, clientPublicKey);
 
         if (!valid) {
@@ -300,6 +308,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
+        // Se a assinatura for válida, o cliente é considerado autenticado.
         this.clientId = id;
         this.pendingChallenge = null;
         this.pendingCertificate = null;
@@ -387,13 +396,17 @@ public class ClientHandler implements Runnable {
         sendSuccess(topic, "Mensagem publicada com sucesso.");
     }
 
+    
     private void handleDownloadPending() {
+        // Recupera todas as mensagens pendentes armazenadas para este cliente.
         List<ProtocolMessage> pending = topicRegistry.downloadPendingMessages(clientId);
 
+        // Envia uma a uma para o cliente.
         for (ProtocolMessage msg : pending) {
             send(msg);
         }
 
+        // Informa ao cliente que o download foi concluído.
         ProtocolMessage response = new ProtocolMessage(
                 MessageType.DOWNLOAD_OK,
                 "broker",
