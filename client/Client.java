@@ -261,18 +261,17 @@ public class Client {
 						break;
 
 					case AUTH_CHALLENGE:
-						// Recebe o desafio aleatório enviado pelo broker
-						String challenge = msg.getPayload();
-						// Assina o desafio usando a chave privada do cliente.
-    					// Somente o dono da chave privada consegue gerar esta assinatura corretamente.
-						String signedChallenge = signChallenge(challenge);
-						 // Cria a resposta ao desafio
-						ProtocolMessage response = new ProtocolMessage(MessageType.AUTH_RESPONSE, clientId, null, null);
-						// Coloca a assinatura gerada
-						response.setSignature(signedChallenge);
-						// Envia a resposta para o broker
-						writer.send(response);
+						
+						String challenge = msg.getPayload(); // Recebe o desafio aleatório enviado pelo broker
+						
+						String signedChallenge = signChallenge(challenge); // Assina o desafio usando a chave privada do cliente.
+						 
+						ProtocolMessage response = new ProtocolMessage(MessageType.AUTH_RESPONSE, clientId, null, null); // Cria a resposta ao desafio
+						
+						response.setSignature(signedChallenge); // Coloca a assinatura gerada
+						writer.send(response); // Envia a resposta para o broker
 						System.out.println("Desafio assinado e enviado ao broker.");
+						
 						break;
 						
 					case LIST_TOPICS_RESPONSE:

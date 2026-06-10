@@ -31,6 +31,7 @@ public class ClientHandler implements Runnable {
     private String clientId;
     private boolean loginOk = false;
 
+    //Construtor
     public ClientHandler(Socket socket, TopicRegistry topicRegistry, UserRegistry userRegistry) throws IOException {
         this.socket = socket;
         this.topicRegistry = topicRegistry;
@@ -39,6 +40,7 @@ public class ClientHandler implements Runnable {
         this.writer = new MessageWriter(socket);
     }
 
+    //Loop principal da thread
     @Override
     public void run() {
         try {
@@ -92,6 +94,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    //Processa as mensagens recebidas do cliente
     private void processMessage(ProtocolMessage message) {
         MessageType type = message.getType();
 
@@ -135,6 +138,8 @@ public class ClientHandler implements Runnable {
         }
     }
 
+
+    //Cadastro e Login
     private void handleRegister(ProtocolMessage message) {
         String username = message.getUsername();
         String password = message.getPassword();
@@ -213,6 +218,8 @@ public class ClientHandler implements Runnable {
         sendSimple(MessageType.LOGIN_OK, "broker", "Login realizado com sucesso.");
     }
 
+    //Autenticação baseada em certificados
+
     private void handleAuthRequest(ProtocolMessage message) {
         if (pendingChallenge != null) {
             sendAuthFail("Ja existe um desafio pendente.");
@@ -251,12 +258,11 @@ public class ClientHandler implements Runnable {
         }
 
         this.pendingCertificate = cert;
-        // Gera um valor aleatório que servirá como desafio.
-        // Este valor será assinado pelo cliente.
-        this.pendingChallenge = UUID.randomUUID().toString();
+        
+        this.pendingChallenge = UUID.randomUUID().toString(); // Gera um valor aleatório que servirá como desafio, este valor será assinado pelo cliente.
 
-        // Envia o desafio para o cliente provar que possui a chave privada correspondente ao certificado.
-        ProtocolMessage challenge = new ProtocolMessage(
+       
+        ProtocolMessage challenge = new ProtocolMessage( // Envia o desafio para o cliente provar que possui a chave privada correspondente ao certificado.
                 MessageType.AUTH_CHALLENGE,
                 "broker",
                 null,
@@ -281,11 +287,11 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        // Obtém a chave pública que está armazenada dentro do certificado do cliente.
-        PublicKey clientPublicKey = CryptoUtils.publicKeyFromBase64(pendingCertificate.getPublicKey());
+        PublicKey clientPublicKey = CryptoUtils.publicKeyFromBase64(pendingCertificate.getPublicKey());// Obtém a chave pública que está armazenada dentro do certificado do cliente.
 
-        // Verifica se a assinatura enviada pelo cliente realmente corresponde ao desafio gerado anteriormente.
-        boolean valid = CryptoUtils.verify(pendingChallenge, signedChallenge, clientPublicKey);
+
+        boolean valid = CryptoUtils.verify(pendingChallenge, signedChallenge, clientPublicKey);// Verifica se a assinatura enviada pelo cliente realmente corresponde ao desafio gerado anteriormente.
+
 
         if (!valid) {
             sendAuthFail("Assinatura invalida. Cliente nao autenticado.");
@@ -308,8 +314,8 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        // Se a assinatura for válida, o cliente é considerado autenticado.
-        this.clientId = id;
+        
+        this.clientId = id; // Se a assinatura for válida, o cliente é considerado autenticado.
         this.pendingChallenge = null;
         this.pendingCertificate = null;
 
@@ -322,6 +328,34 @@ public class ClientHandler implements Runnable {
         response.setTimestamp(System.currentTimeMillis());
         send(response);
     }
+
+    private boolean validateCertificate(Certificate cert) { //validação do certificado enviado pelo cliente 
+        if (cert == null) {
+            return false;
+        }
+
+        if (cert.getClientId() == null || cert.getClientId().isBlank()) {
+            return false;
+        }
+
+        if (cert.getPublicKey() == null || cert.getPublicKey().isBlank()) {
+            return false;
+        }
+
+        if (cert.getSignature() == null || cert.getSignature().isBlank()) {
+            return false;
+        }
+
+        String data = cert.getClientId() + cert.getPublicKey();
+
+        return CryptoUtils.verify(
+                data,
+                cert.getSignature(),
+                CertificateAuthority.getInstance().getPublicKey()
+        );
+    }
+
+    //Gerenciamento de tópicos
 
     private void handleCreateTopic(ProtocolMessage message) {
         String topic = message.getTopic();
@@ -374,6 +408,21 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    private void handleListTopics() {
+        java.util.List<String> topics = topicRegistry.getAllTopics();
+
+        ProtocolMessage response = new ProtocolMessage(
+                MessageType.LIST_TOPICS_RESPONSE,
+                "broker",
+                null,
+                "Lista de tópicos carregada."
+        );
+        response.setTopics(topics);
+        response.setTimestamp(System.currentTimeMillis());
+        send(response);
+    }
+
+    //Publicação de mensagens e bufferização para clientes offline
     private void handlePublish(ProtocolMessage message) {
         String topic = message.getTopic();
 
@@ -398,6 +447,7 @@ public class ClientHandler implements Runnable {
 
     
     private void handleDownloadPending() {
+        
         // Recupera todas as mensagens pendentes armazenadas para este cliente.
         List<ProtocolMessage> pending = topicRegistry.downloadPendingMessages(clientId);
 
@@ -417,51 +467,14 @@ public class ClientHandler implements Runnable {
         send(response);
     }
 
+    //Desconexão
     private void handleDisconnect() {
         sendSuccess(null, "Desconexao realizada.");
         closeConnection();
     }
     
-    private void handleListTopics() {
-        java.util.List<String> topics = topicRegistry.getAllTopics();
-
-        ProtocolMessage response = new ProtocolMessage(
-                MessageType.LIST_TOPICS_RESPONSE,
-                "broker",
-                null,
-                "Lista de tópicos carregada."
-        );
-        response.setTopics(topics);
-        response.setTimestamp(System.currentTimeMillis());
-        send(response);
-    }
-
-    private boolean validateCertificate(Certificate cert) {
-        if (cert == null) {
-            return false;
-        }
-
-        if (cert.getClientId() == null || cert.getClientId().isBlank()) {
-            return false;
-        }
-
-        if (cert.getPublicKey() == null || cert.getPublicKey().isBlank()) {
-            return false;
-        }
-
-        if (cert.getSignature() == null || cert.getSignature().isBlank()) {
-            return false;
-        }
-
-        String data = cert.getClientId() + cert.getPublicKey();
-
-        return CryptoUtils.verify(
-                data,
-                cert.getSignature(),
-                CertificateAuthority.getInstance().getPublicKey()
-        );
-    }
-
+    
+    //Métodos para envio de mensagens
     public void send(ProtocolMessage message) {
         writer.send(message);
     }
@@ -494,6 +507,7 @@ public class ClientHandler implements Runnable {
         send(response);
     }
 
+    //Encerra a conexão com o cliente
     private void closeConnection() {
         running = false;
 
