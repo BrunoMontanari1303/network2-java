@@ -77,14 +77,14 @@ public class TopicRegistry {
         }
     }
 
-    public void publish(String topic, ProtocolMessage originalMessage) {
+    public void publish(String topic, ProtocolMessage originalMessage) { 
         Set<String> subscribers = topicSubscribers.get(topic);
 
         if (subscribers == null || subscribers.isEmpty()) {
             return;
         }
 
-        for (String subscriberId : subscribers) {
+        for (String subscriberId : subscribers) { // cria o modelo da mensagem de entrega
             ProtocolMessage deliverMessage = new ProtocolMessage(
                     MessageType.DELIVER,
                     originalMessage.getClientId(),
@@ -110,7 +110,7 @@ public class TopicRegistry {
                 .add(message);
     }
 
-    public List<ProtocolMessage> downloadPendingMessages(String clientId) {
+    public List<ProtocolMessage> downloadPendingMessages(String clientId) { //Bufferização de mensagens, manda as mensagnes pendentes para os clientes 
         Map<String, List<ProtocolMessage>> clientPending = pendingMessages.get(clientId);
 
         if (clientPending == null || clientPending.isEmpty()) {

@@ -25,8 +25,10 @@ public class Client {
 	private KeyPair keyPair;
 	private ClientGUI gui;
 	private volatile boolean authenticated = false;
+
 	private final Set<String> topicosInscritos = java.util.Collections.synchronizedSet(new HashSet<>());
 	private final Set<String> todosOsTopicos = java.util.Collections.synchronizedSet(new HashSet<>());
+
 	
 	// conecta o cliente ao broker
 	public void connect(String host, int port) throws IOException {
