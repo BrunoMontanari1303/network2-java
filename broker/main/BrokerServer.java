@@ -25,8 +25,7 @@ public class BrokerServer {
                 System.out.println("Novo cliente conectado: " + clientSocket.getInetAddress());
 
                 ClientHandler clientHandler = new ClientHandler(clientSocket, topicRegistry, userRegistry);
-                Thread thread = new Thread(clientHandler);
-                thread.start();
+                new Thread(clientHandler).start();
             }
 
         } catch (IOException e) {
@@ -36,7 +35,6 @@ public class BrokerServer {
     }
 
     public static void main(String[] args) {
-        BrokerServer server = new BrokerServer(5000);
-        server.start();
+        new BrokerServer(5000).start();
     }
 }

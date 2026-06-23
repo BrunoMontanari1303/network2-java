@@ -1,28 +1,28 @@
 package broker.model;
 
-import broker.security.Certificate;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.json.JSONArray;
 import org.json.JSONObject;
 
-public class ProtocolMessage {
+import broker.security.Certificate;
 
+public class ProtocolMessage {
     private MessageType type;
     private String clientId;
     private String topic;
     private String payload;
     private String username;
     private String password;
-    
-    private java.util.List<String> topics;
-
-    private Certificate certificate;   // certificado do cliente
-    private String signature;          // assinatura digital
-    private String encryptedKey;       // (opcional futuro)
+    private String signature;
+    private Certificate certificate;
+    private List<String> topics;
     private Long timestamp;
 
     public ProtocolMessage() {
     }
 
-    // construtor básico (mais usado no broker/client)
     public ProtocolMessage(MessageType type, String clientId, String topic, String payload) {
         this.type = type;
         this.clientId = clientId;
@@ -30,29 +30,6 @@ public class ProtocolMessage {
         this.payload = payload;
         this.timestamp = System.currentTimeMillis();
     }
-
-    // construtor completo (auth / segurança)
-    public ProtocolMessage(
-            MessageType type,
-            String clientId,
-            String topic,
-            String payload,
-            Certificate certificate,
-            String signature,
-            String encryptedKey,
-            Long timestamp
-    ) {
-        this.type = type;
-        this.clientId = clientId;
-        this.topic = topic;
-        this.payload = payload;
-        this.certificate = certificate;
-        this.signature = signature;
-        this.encryptedKey = encryptedKey;
-        this.timestamp = timestamp;
-    }
-
-    // ================= JSON =================
 
     public JSONObject toJson() {
         JSONObject json = new JSONObject();
@@ -63,27 +40,24 @@ public class ProtocolMessage {
         json.put("payload", payload != null ? payload : JSONObject.NULL);
         json.put("username", username != null ? username : JSONObject.NULL);
         json.put("password", password != null ? password : JSONObject.NULL);
-        json.put("topics", topics != null ? topics : JSONObject.NULL);
+        json.put("signature", signature != null ? signature : JSONObject.NULL);
+        json.put("timestamp", timestamp != null ? timestamp : JSONObject.NULL);
 
         if (certificate != null) {
-
             JSONObject certJson = new JSONObject();
-
-            certJson.put("clientId",
-                    certificate.getClientId());
-
-            certJson.put("publicKey",
-                    certificate.getPublicKey());
-
-            certJson.put("signature",
-                    certificate.getSignature());
-
+            certJson.put("clientId", certificate.getClientId());
+            certJson.put("publicKey", certificate.getPublicKey());
+            certJson.put("signature", certificate.getSignature());
             json.put("certificate", certJson);
+        } else {
+            json.put("certificate", JSONObject.NULL);
         }
 
-        json.put("signature", signature != null ? signature : JSONObject.NULL);
-        json.put("encryptedKey", encryptedKey != null ? encryptedKey : JSONObject.NULL);
-        json.put("timestamp", timestamp != null ? timestamp : JSONObject.NULL);
+        if (topics != null) {
+            json.put("topics", topics);
+        } else {
+            json.put("topics", JSONObject.NULL);
+        }
 
         return json;
     }
@@ -100,30 +74,25 @@ public class ProtocolMessage {
         message.setPayload(json.optString("payload", null));
         message.setUsername(json.optString("username", null));
         message.setPassword(json.optString("password", null));
-
-        if (!json.isNull("certificate")) {
-
-            JSONObject certJson = json.getJSONObject("certificate");
-
-            Certificate cert = new Certificate(
-                    certJson.getString("clientId"),
-                    certJson.getString("publicKey"),
-                    certJson.getString("signature")
-            );
-
-            message.setCertificate(cert);
-        }
-
         message.setSignature(json.optString("signature", null));
-        message.setEncryptedKey(json.optString("encryptedKey", null));
 
         if (!json.isNull("timestamp")) {
             message.setTimestamp(json.getLong("timestamp"));
         }
-        
+
+        if (!json.isNull("certificate")) {
+            JSONObject certJson = json.getJSONObject("certificate");
+            Certificate cert = new Certificate(
+                    certJson.optString("clientId", null),
+                    certJson.optString("publicKey", null),
+                    certJson.optString("signature", null)
+            );
+            message.setCertificate(cert);
+        }
+
         if (!json.isNull("topics")) {
-            java.util.List<String> topics = new java.util.ArrayList<>();
-            org.json.JSONArray array = json.getJSONArray("topics");
+            List<String> topics = new ArrayList<>();
+            JSONArray array = json.getJSONArray("topics");
 
             for (int i = 0; i < array.length(); i++) {
                 topics.add(array.getString(i));
@@ -134,8 +103,6 @@ public class ProtocolMessage {
 
         return message;
     }
-
-    // ================= GETTERS / SETTERS =================
 
     public MessageType getType() {
         return type;
@@ -153,23 +120,7 @@ public class ProtocolMessage {
         this.clientId = clientId;
     }
 
-    public String getUsername() {
-		return username;
-	}
-
-	public void setUsername(String username) {
-		this.username = username;
-	}
-
-	public String getPassword() {
-		return password;
-	}
-
-	public void setPassword(String password) {
-		this.password = password;
-	}
-
-	public String getTopic() {
+    public String getTopic() {
         return topic;
     }
 
@@ -185,12 +136,20 @@ public class ProtocolMessage {
         this.payload = payload;
     }
 
-    public Certificate getCertificate() {
-        return certificate;
+    public String getUsername() {
+        return username;
     }
 
-    public void setCertificate(Certificate certificate) {
-        this.certificate = certificate;
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
     }
 
     public String getSignature() {
@@ -201,12 +160,20 @@ public class ProtocolMessage {
         this.signature = signature;
     }
 
-    public String getEncryptedKey() {
-        return encryptedKey;
+    public Certificate getCertificate() {
+        return certificate;
     }
 
-    public void setEncryptedKey(String encryptedKey) {
-        this.encryptedKey = encryptedKey;
+    public void setCertificate(Certificate certificate) {
+        this.certificate = certificate;
+    }
+
+    public List<String> getTopics() {
+        return topics;
+    }
+
+    public void setTopics(List<String> topics) {
+        this.topics = topics;
     }
 
     public Long getTimestamp() {
@@ -215,13 +182,5 @@ public class ProtocolMessage {
 
     public void setTimestamp(Long timestamp) {
         this.timestamp = timestamp;
-    }
-    
-    public java.util.List<String> getTopics() {
-        return topics;
-    }
-
-    public void setTopics(java.util.List<String> topics) {
-        this.topics = topics;
     }
 }

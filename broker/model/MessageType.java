@@ -1,18 +1,10 @@
 package broker.model;
 
 public enum MessageType {
-
-    CREATE_TOPIC,
-    SUBSCRIBE,
-    UNSUBSCRIBE,
-    PUBLISH,
-    DELIVER,
-    SUCCESS,
-    ERROR,
-    
     REGISTER_REQUEST,
     REGISTER_OK,
     REGISTER_FAIL,
+
     LOGIN_REQUEST,
     LOGIN_OK,
     LOGIN_FAIL,
@@ -23,9 +15,20 @@ public enum MessageType {
     AUTH_OK,
     AUTH_FAIL,
 
-    DISCONNECT,
+    CREATE_TOPIC,
+    SUBSCRIBE,
+    UNSUBSCRIBE,
+    PUBLISH,
+    DELIVER,
+
+    SUCCESS,
+    ERROR,
+
     DOWNLOAD_PENDING,
     DOWNLOAD_OK,
+
     LIST_TOPICS_REQUEST,
-    LIST_TOPICS_RESPONSE
+    LIST_TOPICS_RESPONSE,
+
+    DISCONNECT
 }

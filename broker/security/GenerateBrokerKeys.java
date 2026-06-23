@@ -3,7 +3,7 @@ package broker.security;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 
-public class GenerateCAKeys {
+public class GenerateBrokerKeys {
 
     public static void main(String[] args) {
         try {
@@ -11,12 +11,10 @@ public class GenerateCAKeys {
             generator.initialize(2048);
             KeyPair keyPair = generator.generateKeyPair();
 
-            KeyIO.savePrivateKey(keyPair.getPrivate(), "ca_private.key");
-            KeyIO.savePublicKey(keyPair.getPublic(), "ca_public.key");
+            KeyIO.savePrivateKey(keyPair.getPrivate(), "broker_private.key");
+            KeyIO.savePublicKey(keyPair.getPublic(), "broker_public.key");
 
-            System.out.println("Chaves da AC geradas com sucesso.");
-            System.out.println("Arquivo privado: ca_private.key");
-            System.out.println("Arquivo publico: ca_public.key");
+            System.out.println("Chaves do broker geradas com sucesso.");
         } catch (Exception e) {
             e.printStackTrace();
         }
