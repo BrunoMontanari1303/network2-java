@@ -2,7 +2,7 @@ package broker.security;
 
 public class Certificate {
 
-    private String clientId;
+    private String id;
     private String publicKey;
     private String signature;
 
@@ -10,13 +10,13 @@ public class Certificate {
     }
 
     public Certificate(String clientId, String publicKey, String signature) {
-        this.clientId = clientId;
+        this.id = clientId;
         this.publicKey = publicKey;
         this.signature = signature;
     }
 
     public String getClientId() {
-        return clientId;
+        return id;
     }
 
     public String getPublicKey() {
@@ -28,7 +28,7 @@ public class Certificate {
     }
 
     public void setClientId(String clientId) {
-        this.clientId = clientId;
+        this.id = clientId;
     }
 
     public void setPublicKey(String publicKey) {

@@ -40,9 +40,26 @@ public class ClientHandler implements Runnable {
         this.writer = new MessageWriter(socket);
     }
 
+    private void sendBrokerCertificate() {
+        Certificate brokerCert = broker.security.BrokerCertificateStore.loadCertificate();
+
+        ProtocolMessage msg = new ProtocolMessage(
+                MessageType.BROKER_CERT,
+                "broker",
+                null,
+                "Certificado do broker"
+        );
+        msg.setCertificate(brokerCert);
+        msg.setTimestamp(System.currentTimeMillis());
+
+        send(msg);
+    }
+    
     @Override
     public void run() {
         try {
+        	sendBrokerCertificate();
+        	
             while (running) {
                 ProtocolMessage message = reader.read();
 

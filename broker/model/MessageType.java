@@ -30,5 +30,9 @@ public enum MessageType {
     LIST_TOPICS_REQUEST,
     LIST_TOPICS_RESPONSE,
 
-    DISCONNECT
+    DISCONNECT,
+    
+    BROKER_CERT,
+    BROKER_CERT_OK,
+    BROKER_CERT_FAIL
 }

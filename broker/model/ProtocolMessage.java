@@ -6,9 +6,11 @@ import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+
 import broker.security.Certificate;
 
 public class ProtocolMessage {
+	
     private MessageType type;
     private String clientId;
     private String topic;
@@ -19,6 +21,7 @@ public class ProtocolMessage {
     private Certificate certificate;
     private List<String> topics;
     private Long timestamp;
+    
 
     public ProtocolMessage() {
     }
@@ -45,7 +48,7 @@ public class ProtocolMessage {
 
         if (certificate != null) {
             JSONObject certJson = new JSONObject();
-            certJson.put("clientId", certificate.getClientId());
+            certJson.put("id", certificate.getClientId());
             certJson.put("publicKey", certificate.getPublicKey());
             certJson.put("signature", certificate.getSignature());
             json.put("certificate", certJson);
@@ -69,7 +72,7 @@ public class ProtocolMessage {
             message.setType(MessageType.valueOf(json.getString("type")));
         }
 
-        message.setClientId(json.optString("clientId", null));
+        message.setClientId(json.optString("id", null));
         message.setTopic(json.optString("topic", null));
         message.setPayload(json.optString("payload", null));
         message.setUsername(json.optString("username", null));
