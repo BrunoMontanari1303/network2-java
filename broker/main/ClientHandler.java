@@ -30,11 +30,13 @@ public class ClientHandler implements Runnable {
     private boolean loginOk = false;
     private javax.crypto.SecretKey sessionKey;
     private boolean sessionReady = false;
+    private final TopicKeyBot topicKeyBot;
 
-    public ClientHandler(Socket socket, TopicRegistry topicRegistry, UserRegistry userRegistry) throws IOException {
+    public ClientHandler(Socket socket, TopicRegistry topicRegistry, UserRegistry userRegistry, TopicKeyBot topicKeyBot) throws IOException {
         this.socket = socket;
         this.topicRegistry = topicRegistry;
         this.userRegistry = userRegistry;
+        this.topicKeyBot = topicKeyBot;
         this.reader = new MessageReader(socket);
         this.writer = new MessageWriter(socket);
     }
@@ -160,11 +162,7 @@ public class ClientHandler implements Runnable {
             case TOPIC_KEY_SHARE:
                 handleTopicKeyShare(message);
                 break;
-
-            case TOPIC_KEY_ROTATION_REQUEST:
-                sendError("TOPIC_KEY_ROTATION_REQUEST não deve ser enviado pelo cliente ao broker.");
-                break;
-
+           
             default:
                 sendError("Operacao nao suportada pelo broker.");
         }
@@ -380,9 +378,10 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        boolean created = topicRegistry.createTopic(topic, id);
+        boolean created = topicRegistry.createTopic(topic);
 
         if (created) {
+            topicKeyBot.createTopic(topic);
             sendSuccess(topic, "Tópico criado com sucesso.");
         } else {
             sendError(topic, "Topico ja existe.");
@@ -401,7 +400,7 @@ public class ClientHandler implements Runnable {
 
         if (subscribed) {
             sendSuccess(topic, "Inscrição realizada com sucesso.");
-            notifyTopicOwnerToShareKey(topic, id);
+            shareTopicKeyWithSubscriber(topic, id);
         } else {
             sendError(topic, "Topico nao existe.");
         }
@@ -415,9 +414,6 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        String currentOwner = topicRegistry.getTopicOwner(topic);
-        boolean ownerIsLeaving = id != null && id.equals(currentOwner);
-
         boolean unsubscribed = topicRegistry.unsubscribe(topic, id);
 
         if (!unsubscribed) {
@@ -430,19 +426,9 @@ public class ClientHandler implements Runnable {
 
         java.util.Set<String> remainingSubscribers = topicRegistry.getSubscribers(topic);
 
-        if (remainingSubscribers.isEmpty()) {
-            topicRegistry.setTopicOwner(topic, null);
-            return;
+        if (!remainingSubscribers.isEmpty()) {
+            rotateTopicKeyForSubscribers(topic, remainingSubscribers);
         }
-
-        String rotationOwnerId = currentOwner;
-
-        if (ownerIsLeaving) {
-            rotationOwnerId = remainingSubscribers.iterator().next();
-            topicRegistry.setTopicOwner(topic, rotationOwnerId);
-        }
-
-        notifyTopicOwnerToRotateKey(topic, rotationOwnerId, remainingSubscribers);
     }
 
     private void handlePublish(ProtocolMessage message) {
@@ -567,6 +553,74 @@ public class ClientHandler implements Runnable {
             targetHandler.send(forward);
         }
     }
+    
+    private void shareTopicKeyWithSubscriber(String topic, String subscriberId) {
+        UserAccount account = userRegistry.findByUsername(subscriberId);
+
+        if (account == null || account.getPublicKey() == null || account.getPublicKey().isBlank()) {
+            return;
+        }
+
+        String encryptedTopicKey = topicKeyBot.getEncryptedTopicKeyForUser(topic, account.getPublicKey());
+
+        if (encryptedTopicKey == null) {
+            return;
+        }
+
+        topicRegistry.storeEncryptedTopicKey(topic, subscriberId, encryptedTopicKey);
+
+        ClientHandler targetHandler = topicRegistry.getOnlineClient(subscriberId);
+
+        if (targetHandler != null) {
+            ProtocolMessage msg = new ProtocolMessage(
+                    MessageType.TOPIC_KEY_SHARE,
+                    TopicKeyBot.BOT_ID,
+                    topic,
+                    null
+            );
+            msg.setEncryptedTopicKey(encryptedTopicKey);
+            msg.setTimestamp(System.currentTimeMillis());
+
+            targetHandler.send(msg);
+        }
+    }
+    
+    private void rotateTopicKeyForSubscribers(String topic, java.util.Set<String> remainingSubscribers) {
+        java.util.Map<String, String> subscriberPublicKeys = new java.util.HashMap<>();
+
+        for (String subscriberId : remainingSubscribers) {
+            UserAccount account = userRegistry.findByUsername(subscriberId);
+
+            if (account != null && account.getPublicKey() != null && !account.getPublicKey().isBlank()) {
+                subscriberPublicKeys.put(subscriberId, account.getPublicKey());
+            }
+        }
+
+        java.util.Map<String, String> rotatedKeys = topicKeyBot.rotateTopicKey(topic, subscriberPublicKeys);
+
+        for (java.util.Map.Entry<String, String> entry : rotatedKeys.entrySet()) {
+            String subscriberId = entry.getKey();
+            String encryptedTopicKey = entry.getValue();
+
+            topicRegistry.storeEncryptedTopicKey(topic, subscriberId, encryptedTopicKey);
+
+            ClientHandler targetHandler = topicRegistry.getOnlineClient(subscriberId);
+
+            if (targetHandler != null) {
+                ProtocolMessage msg = new ProtocolMessage(
+                        MessageType.TOPIC_KEY_SHARE,
+                        TopicKeyBot.BOT_ID,
+                        topic,
+                        null
+                );
+                msg.setEncryptedTopicKey(encryptedTopicKey);
+                msg.setTimestamp(System.currentTimeMillis());
+
+                targetHandler.send(msg);
+            }
+        }
+    }
+    		
 
     public void send(ProtocolMessage message) {
         writer.send(message);
@@ -638,67 +692,5 @@ public class ClientHandler implements Runnable {
 
     public String getId() {
         return id;
-    }
-    
-    private void notifyTopicOwnerToShareKey(String topic, String newSubscriberId) {
-        String ownerId = topicRegistry.getTopicOwner(topic);
-
-        if (ownerId == null || ownerId.equals(newSubscriberId)) {
-            return;
-        }
-
-        ClientHandler ownerHandler = topicRegistry.getOnlineClient(ownerId);
-        UserAccount subscriberAccount = userRegistry.findByUsername(newSubscriberId);
-
-        if (ownerHandler == null || subscriberAccount == null) {
-            return;
-        }
-
-        ProtocolMessage request = new ProtocolMessage(
-                MessageType.TOPIC_KEY_REQUEST,
-                "broker",
-                topic,
-                "Compartilhe a chave do tópico com o novo inscrito."
-        );
-
-        request.setTargetId(newSubscriberId);
-        request.setTargetPublicKey(subscriberAccount.getPublicKey());
-        request.setTimestamp(System.currentTimeMillis());
-
-        ownerHandler.send(request);
-    }
-    
-    private void notifyTopicOwnerToRotateKey(String topic, String rotationOwnerId, java.util.Set<String> remainingSubscribers) {
-        ClientHandler ownerHandler = topicRegistry.getOnlineClient(rotationOwnerId);
-
-        if (ownerHandler == null) {
-            return;
-        }
-
-        java.util.List<String> targetIds = new java.util.ArrayList<>();
-        java.util.List<String> targetPublicKeys = new java.util.ArrayList<>();
-
-        for (String subscriberId : remainingSubscribers) {
-            UserAccount account = userRegistry.findByUsername(subscriberId);
-
-            if (account != null && account.getPublicKey() != null && !account.getPublicKey().isBlank()) {
-                targetIds.add(subscriberId);
-                targetPublicKeys.add(account.getPublicKey());
-            }
-        }
-
-        ProtocolMessage request = new ProtocolMessage(
-                MessageType.TOPIC_KEY_ROTATION_REQUEST,
-                "broker",
-                topic,
-                "Rotacione a chave do tópico."
-        );
-
-        request.setTargetIds(targetIds);
-        request.setTargetPublicKeys(targetPublicKeys);
-        request.setTimestamp(System.currentTimeMillis());
-
-        ownerHandler.send(request);
-    }
-    
+    }              
 }

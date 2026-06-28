@@ -9,11 +9,13 @@ public class BrokerServer {
     private final int port;
     private final TopicRegistry topicRegistry;
     private final UserRegistry userRegistry;
+    private final TopicKeyBot topicKeyBot;
 
     public BrokerServer(int port) {
         this.port = port;
         this.topicRegistry = new TopicRegistry();
         this.userRegistry = new UserRegistry();
+        this.topicKeyBot = new TopicKeyBot();
     }
 
     public void start() {
@@ -24,7 +26,13 @@ public class BrokerServer {
                 Socket clientSocket = serverSocket.accept();
                 System.out.println("Novo cliente conectado: " + clientSocket.getInetAddress());
 
-                ClientHandler clientHandler = new ClientHandler(clientSocket, topicRegistry, userRegistry);
+                ClientHandler clientHandler = new ClientHandler(
+                        clientSocket,
+                        topicRegistry,
+                        userRegistry,
+                        topicKeyBot
+                );
+
                 new Thread(clientHandler).start();
             }
 

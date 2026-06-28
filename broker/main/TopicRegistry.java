@@ -16,18 +16,11 @@ public class TopicRegistry {
     private final Map<String, ClientHandler> onlineClients = new ConcurrentHashMap<>();
     // Armazena mensagens pendentes para clientes offline.
     private final Map<String, Map<String, List<ProtocolMessage>>> pendingMessages = new ConcurrentHashMap<>();
-    private final Map<String, String> topicOwners = new ConcurrentHashMap<>();
     private final Map<String, Map<String, String>> storedEncryptedTopicKeys = new ConcurrentHashMap<>();
 
 
-    public boolean createTopic(String topic, String ownerId) {
-        boolean created = topicSubscribers.putIfAbsent(topic, ConcurrentHashMap.newKeySet()) == null;
-
-        if (created) {
-            topicOwners.put(topic, ownerId);
-        }
-
-        return created;
+    public boolean createTopic(String topic) {
+        return topicSubscribers.putIfAbsent(topic, ConcurrentHashMap.newKeySet()) == null;
     }
 
     public boolean topicExists(String topic) {
@@ -200,17 +193,7 @@ public class TopicRegistry {
         }
 
         return new java.util.HashSet<>(subscribers);
-    }
-
-    public void setTopicOwner(String topic, String ownerId) {
-        if (ownerId == null || ownerId.isBlank()) {
-            topicOwners.remove(topic);
-        } else {
-            topicOwners.put(topic, ownerId);
-        }
-    }
-    
-    
+    } 
     
     public java.util.List<String> getAllTopics() {
         java.util.List<String> topics = new java.util.ArrayList<>(topicSubscribers.keySet());
@@ -218,10 +201,6 @@ public class TopicRegistry {
         return topics;
     }
     
-    public String getTopicOwner(String topic) {
-        return topicOwners.get(topic);
-    }
-
     public ClientHandler getOnlineClient(String id) {
         return onlineClients.get(id);
     }

@@ -59,9 +59,7 @@ public class ProtocolMessage {
         json.put("encryptedTopicKey", encryptedTopicKey != null ? encryptedTopicKey : JSONObject.NULL);
         json.put("encryptedPayload", encryptedPayload != null ? encryptedPayload : JSONObject.NULL);
         json.put("payloadIv", payloadIv != null ? payloadIv : JSONObject.NULL);
-        json.put("targetIds", targetIds != null ? targetIds : org.json.JSONObject.NULL);
-        json.put("targetPublicKeys", targetPublicKeys != null ? targetPublicKeys : org.json.JSONObject.NULL);
-
+        
         if (certificate != null) {
             JSONObject certJson = new JSONObject();
             certJson.put("id", certificate.getClientId());
@@ -124,29 +122,7 @@ public class ProtocolMessage {
             }
 
             message.setTopics(topics);
-        }
-        
-        if (!json.isNull("targetIds")) {
-            java.util.List<String> ids = new java.util.ArrayList<>();
-            org.json.JSONArray array = json.getJSONArray("targetIds");
-
-            for (int i = 0; i < array.length(); i++) {
-                ids.add(array.getString(i));
-            }
-
-            message.setTargetIds(ids);
-        }
-
-        if (!json.isNull("targetPublicKeys")) {
-            java.util.List<String> keys = new java.util.ArrayList<>();
-            org.json.JSONArray array = json.getJSONArray("targetPublicKeys");
-
-            for (int i = 0; i < array.length(); i++) {
-                keys.add(array.getString(i));
-            }
-
-            message.setTargetPublicKeys(keys);
-        }
+        }               
 
         return message;
     }

@@ -97,8 +97,6 @@ public class Client {
 	        return;
 	    }
 
-	    ensureTopicKey(topic);
-
 	    ProtocolMessage msg = new ProtocolMessage(MessageType.CREATE_TOPIC, id, topic, null);
 	    writer.send(msg);
 	}
@@ -252,7 +250,6 @@ public class Client {
 							if (gui != null) {
 								gui.adicionarMensagem("[BROKER] Tópico criado com sucesso.");
 							}
-							storeOwnTopicKeyOnBroker(msg.getTopic());
 							requestAllTopics();
 						}
 
@@ -404,39 +401,7 @@ public class Client {
 					    }
 					    break;
 					    
-					case TOPIC_KEY_REQUEST:
-					    javax.crypto.SecretKey myTopicKey = topicKeys.get(msg.getTopic());
-
-					    if (myTopicKey == null) {
-					        if (gui != null) {
-					            gui.adicionarMensagem("[ERRO] Você não possui a chave do tópico " + msg.getTopic());
-					        }
-					        break;
-					    }
-
-					    java.security.PublicKey targetPubKey =
-					            broker.security.CryptoUtils.publicKeyFromBase64(msg.getTargetPublicKey());
-
-					    String encryptedTopicKey = broker.security.CryptoUtils.encryptRSA(
-					            myTopicKey.getEncoded(),
-					            targetPubKey
-					    );
-
-					    ProtocolMessage share = new ProtocolMessage(
-					            MessageType.TOPIC_KEY_SHARE,
-					            id,
-					            msg.getTopic(),
-					            null
-					    );
-					    share.setTargetId(msg.getTargetId());
-					    share.setEncryptedTopicKey(encryptedTopicKey);
-
-					    writer.send(share);
-
-					    if (gui != null) {
-					        gui.adicionarMensagem("[BROKER] Chave do tópico compartilhada com " + msg.getTargetId());
-					    }
-					    break;
+					
 					    
 					case TOPIC_KEY_SHARE:
 						byte[] topicKeyBytes = broker.security.CryptoUtils.decryptRSA(
@@ -461,45 +426,7 @@ public class Client {
 
 					    requestPendingMessages();
 					    break;
-					    
-					case TOPIC_KEY_ROTATION_REQUEST:
-					    javax.crypto.SecretKey newTopicKey = broker.security.CryptoUtils.generateAESKey();
-					    topicKeys.put(msg.getTopic(), newTopicKey);
-
-					    java.util.List<String> ids = msg.getTargetIds();
-					    java.util.List<String> publicKeys = msg.getTargetPublicKeys();
-
-					    if (ids != null && publicKeys != null && ids.size() == publicKeys.size()) {
-					        for (int i = 0; i < ids.size(); i++) {
-					            String targetId = ids.get(i);
-					            String targetPublicKey = publicKeys.get(i);
-
-					            java.security.PublicKey pubKey =
-					                    broker.security.CryptoUtils.publicKeyFromBase64(targetPublicKey);
-
-					            encryptedTopicKey = broker.security.CryptoUtils.encryptRSA(
-					                    newTopicKey.getEncoded(),
-					                    pubKey
-					            );
-
-					            share = new ProtocolMessage(
-					                    MessageType.TOPIC_KEY_SHARE,
-					                    id,
-					                    msg.getTopic(),
-					                    null
-					            );
-					            share.setTargetId(targetId);
-					            share.setEncryptedTopicKey(encryptedTopicKey);
-
-					            writer.send(share);
-					        }
-					    }
-
-					    if (gui != null) {
-					        gui.adicionarMensagem("[BROKER] Chave do tópico " + msg.getTopic() + " rotacionada.");
-					    }
-					    break;
-
+					    					
 					default:
 						System.out.println("[INFO] Mensagem recebida: " + msg.toJson().toString());
 						break;
@@ -624,35 +551,5 @@ public class Client {
 	private void ensureTopicKey(String topic) {
 	    topicKeys.computeIfAbsent(topic, t -> broker.security.CryptoUtils.generateAESKey());
 	}
-	
-	private void storeOwnTopicKeyOnBroker(String topic) {
-	    try {
-	        javax.crypto.SecretKey myTopicKey = topicKeys.get(topic);
-
-	        if (myTopicKey == null) {
-	            return;
-	        }
-
-	        java.security.PublicKey myPublicKey =
-	                broker.security.CryptoUtils.publicKeyFromBase64(getPublicKeyString());
-
-	        String encryptedTopicKey = broker.security.CryptoUtils.encryptRSA(
-	                myTopicKey.getEncoded(),
-	                myPublicKey
-	        );
-
-	        ProtocolMessage share = new ProtocolMessage(
-	                MessageType.TOPIC_KEY_SHARE,
-	                id,
-	                topic,
-	                null
-	        );
-	        share.setTargetId(id);
-	        share.setEncryptedTopicKey(encryptedTopicKey);
-
-	        writer.send(share);
-	    } catch (Exception e) {
-	        throw new RuntimeException("Erro ao armazenar a própria chave do tópico no broker", e);
-	    }
-	}
+		
 }
