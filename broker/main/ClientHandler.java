@@ -161,6 +161,10 @@ public class ClientHandler implements Runnable {
                 handleTopicKeyShare(message);
                 break;
 
+            case TOPIC_KEY_ROTATION_REQUEST:
+                sendError("TOPIC_KEY_ROTATION_REQUEST não deve ser enviado pelo cliente ao broker.");
+                break;
+
             default:
                 sendError("Operacao nao suportada pelo broker.");
         }
@@ -411,13 +415,34 @@ public class ClientHandler implements Runnable {
             return;
         }
 
+        String currentOwner = topicRegistry.getTopicOwner(topic);
+        boolean ownerIsLeaving = id != null && id.equals(currentOwner);
+
         boolean unsubscribed = topicRegistry.unsubscribe(topic, id);
 
-        if (unsubscribed) {
-            sendSuccess(topic, "Inscrição removida com sucesso.");
-        } else {
+        if (!unsubscribed) {
             sendError(topic, "Topico nao existe.");
+            return;
         }
+
+        topicRegistry.removeStoredEncryptedTopicKey(topic, id);
+        sendSuccess(topic, "Inscrição removida com sucesso.");
+
+        java.util.Set<String> remainingSubscribers = topicRegistry.getSubscribers(topic);
+
+        if (remainingSubscribers.isEmpty()) {
+            topicRegistry.setTopicOwner(topic, null);
+            return;
+        }
+
+        String rotationOwnerId = currentOwner;
+
+        if (ownerIsLeaving) {
+            rotationOwnerId = remainingSubscribers.iterator().next();
+            topicRegistry.setTopicOwner(topic, rotationOwnerId);
+        }
+
+        notifyTopicOwnerToRotateKey(topic, rotationOwnerId, remainingSubscribers);
     }
 
     private void handlePublish(ProtocolMessage message) {
@@ -642,4 +667,38 @@ public class ClientHandler implements Runnable {
 
         ownerHandler.send(request);
     }
+    
+    private void notifyTopicOwnerToRotateKey(String topic, String rotationOwnerId, java.util.Set<String> remainingSubscribers) {
+        ClientHandler ownerHandler = topicRegistry.getOnlineClient(rotationOwnerId);
+
+        if (ownerHandler == null) {
+            return;
+        }
+
+        java.util.List<String> targetIds = new java.util.ArrayList<>();
+        java.util.List<String> targetPublicKeys = new java.util.ArrayList<>();
+
+        for (String subscriberId : remainingSubscribers) {
+            UserAccount account = userRegistry.findByUsername(subscriberId);
+
+            if (account != null && account.getPublicKey() != null && !account.getPublicKey().isBlank()) {
+                targetIds.add(subscriberId);
+                targetPublicKeys.add(account.getPublicKey());
+            }
+        }
+
+        ProtocolMessage request = new ProtocolMessage(
+                MessageType.TOPIC_KEY_ROTATION_REQUEST,
+                "broker",
+                topic,
+                "Rotacione a chave do tópico."
+        );
+
+        request.setTargetIds(targetIds);
+        request.setTargetPublicKeys(targetPublicKeys);
+        request.setTimestamp(System.currentTimeMillis());
+
+        ownerHandler.send(request);
+    }
+    
 }

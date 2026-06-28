@@ -43,4 +43,5 @@ public enum MessageType {
     TOPIC_KEY_REQUEST,
     TOPIC_KEY_SHARE,
     TOPIC_KEYS_SYNC_DONE,
+    TOPIC_KEY_ROTATION_REQUEST
 }

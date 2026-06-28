@@ -158,8 +158,8 @@ public class TopicRegistry {
                 .put(topic, encryptedTopicKey);
     }
 
-    public Map<String, String> getStoredEncryptedTopicKeys(String subscriberId) {
-        Map<String, String> keys = storedEncryptedTopicKeys.get(subscriberId);
+    public java.util.Map<String, String> getStoredEncryptedTopicKeys(String subscriberId) {
+        java.util.Map<String, String> keys = storedEncryptedTopicKeys.get(subscriberId);
 
         if (keys == null) {
             return new ConcurrentHashMap<>();
@@ -169,7 +169,7 @@ public class TopicRegistry {
     }
 
     public void removeStoredEncryptedTopicKey(String topic, String subscriberId) {
-        Map<String, String> keys = storedEncryptedTopicKeys.get(subscriberId);
+        java.util.Map<String, String> keys = storedEncryptedTopicKeys.get(subscriberId);
 
         if (keys != null) {
             keys.remove(topic);
@@ -192,6 +192,26 @@ public class TopicRegistry {
         return result;
     }
     
+    public java.util.Set<String> getSubscribers(String topic) {
+        java.util.Set<String> subscribers = topicSubscribers.get(topic);
+
+        if (subscribers == null) {
+            return java.util.Collections.emptySet();
+        }
+
+        return new java.util.HashSet<>(subscribers);
+    }
+
+    public void setTopicOwner(String topic, String ownerId) {
+        if (ownerId == null || ownerId.isBlank()) {
+            topicOwners.remove(topic);
+        } else {
+            topicOwners.put(topic, ownerId);
+        }
+    }
+    
+    
+    
     public java.util.List<String> getAllTopics() {
         java.util.List<String> topics = new java.util.ArrayList<>(topicSubscribers.keySet());
         java.util.Collections.sort(topics);
@@ -205,4 +225,6 @@ public class TopicRegistry {
     public ClientHandler getOnlineClient(String id) {
         return onlineClients.get(id);
     }
+    
+    
 }

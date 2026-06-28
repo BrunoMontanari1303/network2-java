@@ -439,7 +439,7 @@ public class Client {
 					    break;
 					    
 					case TOPIC_KEY_SHARE:
-					    byte[] topicKeyBytes = broker.security.CryptoUtils.decryptRSA(
+						byte[] topicKeyBytes = broker.security.CryptoUtils.decryptRSA(
 					            msg.getEncryptedTopicKey(),
 					            keyPair.getPrivate()
 					    );
@@ -460,6 +460,44 @@ public class Client {
 					    }
 
 					    requestPendingMessages();
+					    break;
+					    
+					case TOPIC_KEY_ROTATION_REQUEST:
+					    javax.crypto.SecretKey newTopicKey = broker.security.CryptoUtils.generateAESKey();
+					    topicKeys.put(msg.getTopic(), newTopicKey);
+
+					    java.util.List<String> ids = msg.getTargetIds();
+					    java.util.List<String> publicKeys = msg.getTargetPublicKeys();
+
+					    if (ids != null && publicKeys != null && ids.size() == publicKeys.size()) {
+					        for (int i = 0; i < ids.size(); i++) {
+					            String targetId = ids.get(i);
+					            String targetPublicKey = publicKeys.get(i);
+
+					            java.security.PublicKey pubKey =
+					                    broker.security.CryptoUtils.publicKeyFromBase64(targetPublicKey);
+
+					            encryptedTopicKey = broker.security.CryptoUtils.encryptRSA(
+					                    newTopicKey.getEncoded(),
+					                    pubKey
+					            );
+
+					            share = new ProtocolMessage(
+					                    MessageType.TOPIC_KEY_SHARE,
+					                    id,
+					                    msg.getTopic(),
+					                    null
+					            );
+					            share.setTargetId(targetId);
+					            share.setEncryptedTopicKey(encryptedTopicKey);
+
+					            writer.send(share);
+					        }
+					    }
+
+					    if (gui != null) {
+					        gui.adicionarMensagem("[BROKER] Chave do tópico " + msg.getTopic() + " rotacionada.");
+					    }
 					    break;
 
 					default:

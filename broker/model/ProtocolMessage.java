@@ -27,6 +27,8 @@ public class ProtocolMessage {
     private String encryptedTopicKey;
     private String encryptedPayload;
     private String payloadIv;
+    private java.util.List<String> targetIds;
+    private java.util.List<String> targetPublicKeys;
     
 
     public ProtocolMessage() {
@@ -57,6 +59,8 @@ public class ProtocolMessage {
         json.put("encryptedTopicKey", encryptedTopicKey != null ? encryptedTopicKey : JSONObject.NULL);
         json.put("encryptedPayload", encryptedPayload != null ? encryptedPayload : JSONObject.NULL);
         json.put("payloadIv", payloadIv != null ? payloadIv : JSONObject.NULL);
+        json.put("targetIds", targetIds != null ? targetIds : org.json.JSONObject.NULL);
+        json.put("targetPublicKeys", targetPublicKeys != null ? targetPublicKeys : org.json.JSONObject.NULL);
 
         if (certificate != null) {
             JSONObject certJson = new JSONObject();
@@ -120,6 +124,28 @@ public class ProtocolMessage {
             }
 
             message.setTopics(topics);
+        }
+        
+        if (!json.isNull("targetIds")) {
+            java.util.List<String> ids = new java.util.ArrayList<>();
+            org.json.JSONArray array = json.getJSONArray("targetIds");
+
+            for (int i = 0; i < array.length(); i++) {
+                ids.add(array.getString(i));
+            }
+
+            message.setTargetIds(ids);
+        }
+
+        if (!json.isNull("targetPublicKeys")) {
+            java.util.List<String> keys = new java.util.ArrayList<>();
+            org.json.JSONArray array = json.getJSONArray("targetPublicKeys");
+
+            for (int i = 0; i < array.length(); i++) {
+                keys.add(array.getString(i));
+            }
+
+            message.setTargetPublicKeys(keys);
         }
 
         return message;
@@ -251,5 +277,21 @@ public class ProtocolMessage {
 
     public void setPayloadIv(String payloadIv) {
         this.payloadIv = payloadIv;
+    }
+    
+    public java.util.List<String> getTargetIds() {
+        return targetIds;
+    }
+
+    public void setTargetIds(java.util.List<String> targetIds) {
+        this.targetIds = targetIds;
+    }
+
+    public java.util.List<String> getTargetPublicKeys() {
+        return targetPublicKeys;
+    }
+
+    public void setTargetPublicKeys(java.util.List<String> targetPublicKeys) {
+        this.targetPublicKeys = targetPublicKeys;
     }
 }
