@@ -34,5 +34,9 @@ public enum MessageType {
     
     BROKER_CERT,
     BROKER_CERT_OK,
-    BROKER_CERT_FAIL
+    BROKER_CERT_FAIL,
+    
+    SESSION_KEY_EXCHANGE,
+    SESSION_KEY_OK,
+    SESSION_KEY_FAIL
 }

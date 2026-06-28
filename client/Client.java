@@ -24,6 +24,8 @@ public class Client {
 	private ClientGUI gui;
 	private volatile boolean authenticated = false;
 	private volatile boolean brokerValidated = false;
+	private javax.crypto.SecretKey sessionKey;
+	private volatile boolean sessionReady = false;
 
 	private final Set<String> topicosInscritos = java.util.Collections.synchronizedSet(new HashSet<>());
 
@@ -99,6 +101,14 @@ public class Client {
 		ensureKeysForUser(username);
 		authenticated = false;
 
+		if (!sessionReady) {
+		    System.out.println("Sessao segura ainda nao estabelecida.");
+		    if (gui != null) {
+		        gui.adicionarStatusLogin("Sessao segura ainda nao estabelecida.");
+		    }
+		    return;
+		}
+		
 		if (!brokerValidated) {
 			System.out.println("Broker ainda nao validado.");
 			if (gui != null) {
@@ -130,6 +140,14 @@ public class Client {
 		ensureKeysForUser(username);
 		authenticated = false;
 
+		if (!sessionReady) {
+		    System.out.println("Sessao segura ainda nao estabelecida.");
+		    if (gui != null) {
+		        gui.adicionarStatusLogin("Sessao segura ainda nao estabelecida.");
+		    }
+		    return;
+		}
+		
 		if (!brokerValidated) {
 			System.out.println("Broker ainda nao validado.");
 			if (gui != null) {
@@ -329,6 +347,24 @@ public class Client {
 							socket.close();
 						}
 						break;
+						
+					case SESSION_KEY_OK:
+					    sessionReady = true;
+					    System.out.println("[SESSAO] Chave de sessão estabelecida com sucesso.");
+
+					    if (gui != null) {
+					        gui.adicionarStatusLogin("[SESSAO OK] Chave de sessão estabelecida.");
+					    }
+					    break;
+
+					case SESSION_KEY_FAIL:
+					    sessionReady = false;
+					    System.out.println("[SESSAO FAIL] " + msg.getPayload());
+
+					    if (gui != null) {
+					        gui.adicionarStatusLogin("[SESSAO FAIL] " + msg.getPayload());
+					    }
+					    break;
 
 					default:
 						System.out.println("[INFO] Mensagem recebida: " + msg.toJson().toString());
@@ -420,5 +456,28 @@ public class Client {
 		ProtocolMessage msg = new ProtocolMessage(MessageType.BROKER_CERT_FAIL, id, null,
 				"Falha na validacao do certificado do broker.");
 		writer.send(msg);
+	}
+	
+	public void establishSession() {
+	    try {
+	        this.sessionKey = broker.security.CryptoUtils.generateAESKey();
+
+	        String encryptedSessionKey = broker.security.CryptoUtils.encryptRSA(
+	                sessionKey.getEncoded(),
+	                broker.security.BrokerKeyStore.getPublicKey()
+	        );
+
+	        ProtocolMessage msg = new ProtocolMessage(
+	                MessageType.SESSION_KEY_EXCHANGE,
+	                id,
+	                null,
+	                null
+	        );
+	        msg.setEncryptedSessionKey(encryptedSessionKey);
+
+	        writer.send(msg);
+	    } catch (Exception e) {
+	        throw new RuntimeException("Erro ao estabelecer chave de sessão", e);
+	    }
 	}
 }

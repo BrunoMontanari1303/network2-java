@@ -6,6 +6,7 @@ public class ClientMain {
         Client client = new Client("");
         client.connect("localhost", 5000);
         client.startListening();
+        client.establishSession();
 
         new ClientGUI(client);
     }

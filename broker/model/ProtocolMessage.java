@@ -21,6 +21,7 @@ public class ProtocolMessage {
     private Certificate certificate;
     private List<String> topics;
     private Long timestamp;
+    private String encryptedSessionKey;
     
 
     public ProtocolMessage() {
@@ -45,6 +46,7 @@ public class ProtocolMessage {
         json.put("password", password != null ? password : JSONObject.NULL);
         json.put("signature", signature != null ? signature : JSONObject.NULL);
         json.put("timestamp", timestamp != null ? timestamp : JSONObject.NULL);
+        json.put("encryptedSessionKey", encryptedSessionKey != null ? encryptedSessionKey : JSONObject.NULL);
 
         if (certificate != null) {
             JSONObject certJson = new JSONObject();
@@ -78,6 +80,7 @@ public class ProtocolMessage {
         message.setUsername(json.optString("username", null));
         message.setPassword(json.optString("password", null));
         message.setSignature(json.optString("signature", null));
+        message.setEncryptedSessionKey(json.optString("encryptedSessionKey", null));
 
         if (!json.isNull("timestamp")) {
             message.setTimestamp(json.getLong("timestamp"));
@@ -185,5 +188,13 @@ public class ProtocolMessage {
 
     public void setTimestamp(Long timestamp) {
         this.timestamp = timestamp;
+    }
+    
+    public String getEncryptedSessionKey() {
+        return encryptedSessionKey;
+    }
+
+    public void setEncryptedSessionKey(String encryptedSessionKey) {
+        this.encryptedSessionKey = encryptedSessionKey;
     }
 }

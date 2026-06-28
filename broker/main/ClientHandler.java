@@ -23,14 +23,13 @@ public class ClientHandler implements Runnable {
     private final UserRegistry userRegistry;
     private final MessageReader reader;
     private final MessageWriter writer;
-
     private volatile boolean running = true;
-
     private String pendingChallenge;
     private Certificate pendingCertificate;
-
-    private String clientId;
+    private String id;
     private boolean loginOk = false;
+    private javax.crypto.SecretKey sessionKey;
+    private boolean sessionReady = false;
 
     public ClientHandler(Socket socket, TopicRegistry topicRegistry, UserRegistry userRegistry) throws IOException {
         this.socket = socket;
@@ -67,6 +66,17 @@ public class ClientHandler implements Runnable {
                     running = false;
                     break;
                 }
+                
+                if (!sessionReady) {
+                    if (message.getType() == MessageType.SESSION_KEY_EXCHANGE) {
+                        handleSessionKeyExchange(message);
+                        continue;
+                    }
+
+                    sendError("Sessao segura ainda nao estabelecida.");
+                    closeConnection();
+                    break;
+                }
 
                 if (!loginOk) {
                     if (message.getType() == MessageType.REGISTER_REQUEST) {
@@ -84,7 +94,7 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
-                if (clientId == null) {
+                if (id == null) {
                     if (message.getType() == MessageType.AUTH_REQUEST) {
                         handleAuthRequest(message);
                         continue;
@@ -311,7 +321,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        this.clientId = id;
+        this.id = id;
         this.pendingChallenge = null;
         this.pendingCertificate = null;
 
@@ -376,7 +386,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        boolean subscribed = topicRegistry.subscribe(topic, clientId);
+        boolean subscribed = topicRegistry.subscribe(topic, id);
 
         if (subscribed) {
             sendSuccess(topic, "Inscrição realizada com sucesso.");
@@ -393,7 +403,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        boolean unsubscribed = topicRegistry.unsubscribe(topic, clientId);
+        boolean unsubscribed = topicRegistry.unsubscribe(topic, id);
 
         if (unsubscribed) {
             sendSuccess(topic, "Inscrição removida com sucesso.");
@@ -415,7 +425,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        if (!topicRegistry.isSubscribed(topic, clientId)) {
+        if (!topicRegistry.isSubscribed(topic, id)) {
             sendError(topic, "Cliente nao inscrito no topico. Publicacao bloqueada.");
             return;
         }
@@ -425,7 +435,7 @@ public class ClientHandler implements Runnable {
     }
 
     private void handleDownloadPending() {
-        List<ProtocolMessage> pending = topicRegistry.downloadPendingMessages(clientId);
+        List<ProtocolMessage> pending = topicRegistry.downloadPendingMessages(id);
 
         for (ProtocolMessage msg : pending) {
             send(msg);
@@ -458,6 +468,31 @@ public class ClientHandler implements Runnable {
     private void handleDisconnect() {
         sendSuccess(null, "Desconexao realizada.");
         closeConnection();
+    }
+    
+    private void handleSessionKeyExchange(ProtocolMessage message) {
+        String encryptedSessionKey = message.getEncryptedSessionKey();
+
+        if (encryptedSessionKey == null || encryptedSessionKey.isBlank()) {
+            sendSimple(MessageType.SESSION_KEY_FAIL, "broker", "Chave de sessao ausente.");
+            closeConnection();
+            return;
+        }
+
+        try {
+            byte[] aesKeyBytes = broker.security.CryptoUtils.decryptRSA(
+                    encryptedSessionKey,
+                    broker.security.BrokerKeyStore.getPrivateKey()
+            );
+
+            this.sessionKey = broker.security.CryptoUtils.aesKeyFromBytes(aesKeyBytes);
+            this.sessionReady = true;
+
+            sendSimple(MessageType.SESSION_KEY_OK, "broker", "Chave de sessao estabelecida.");
+        } catch (Exception e) {
+            sendSimple(MessageType.SESSION_KEY_FAIL, "broker", "Falha ao processar chave de sessao.");
+            closeConnection();
+        }
     }
 
     public void send(ProtocolMessage message) {
@@ -496,13 +531,13 @@ public class ClientHandler implements Runnable {
         running = false;
 
         try {
-            topicRegistry.unregisterOnlineClient(clientId);
+            topicRegistry.unregisterOnlineClient(id);
             socket.close();
         } catch (IOException ignored) {
         }
     }
 
     public String getClientId() {
-        return clientId;
+        return id;
     }
 }
