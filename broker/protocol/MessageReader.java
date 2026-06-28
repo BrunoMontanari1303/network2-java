@@ -1,30 +1,59 @@
 package broker.protocol;
 
 import broker.model.ProtocolMessage;
+import broker.security.CryptoUtils;
 import org.json.JSONObject;
 
+import javax.crypto.SecretKey;
 import java.io.BufferedReader;
-import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.util.Base64;
 
 public class MessageReader {
 
-    private final BufferedReader reader; // vai ler texto vindo do socket convertendo JSON em objeto Java 
+    private final BufferedReader reader;
+    private SecretKey sessionKey;
 
-    public MessageReader(Socket socket) throws IOException {
-        this.reader = new BufferedReader(new InputStreamReader(socket.getInputStream())); //Pega fluxo de entrada do socket
-    }
-
-    public ProtocolMessage read() throws IOException {//responsavel por ler e tranformar em java 
-        String line = reader.readLine();
-
-        if (line == null) {
-            return null;
+    public MessageReader(Socket socket) {
+        try {
+            InputStream input = socket.getInputStream();
+            this.reader = new BufferedReader(new InputStreamReader(input));
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao criar MessageReader", e);
         }
-
-        JSONObject json = new JSONObject(line); //transforma texto Json em objeto manipulavel 
-        return ProtocolMessage.fromJson(json);//converte JSON para o ProtocolMessage
     }
 
+    public void setSessionKey(SecretKey sessionKey) {
+        this.sessionKey = sessionKey;
+    }
+
+    public ProtocolMessage read() {
+        try {
+            String line = reader.readLine();
+
+            if (line == null) {
+                return null;
+            }
+
+            JSONObject json = new JSONObject(line);
+
+            if (json.optBoolean("secure", false)) {
+                if (sessionKey == null) {
+                    throw new RuntimeException("Mensagem segura recebida sem chave de sessão.");
+                }
+
+                byte[] iv = Base64.getDecoder().decode(json.getString("iv"));
+                String encryptedData = json.getString("data");
+                String plaintext = CryptoUtils.decryptAES(encryptedData, sessionKey, iv);
+
+                json = new JSONObject(plaintext);
+            }
+
+            return ProtocolMessage.fromJson(json);
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao ler mensagem", e);
+        }
+    }
 }

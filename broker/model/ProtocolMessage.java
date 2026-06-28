@@ -12,7 +12,7 @@ import broker.security.Certificate;
 public class ProtocolMessage {
 	
     private MessageType type;
-    private String clientId;
+    private String id;
     private String topic;
     private String payload;
     private String username;
@@ -22,6 +22,11 @@ public class ProtocolMessage {
     private List<String> topics;
     private Long timestamp;
     private String encryptedSessionKey;
+    private String targetId;
+    private String targetPublicKey;
+    private String encryptedTopicKey;
+    private String encryptedPayload;
+    private String payloadIv;
     
 
     public ProtocolMessage() {
@@ -29,7 +34,7 @@ public class ProtocolMessage {
 
     public ProtocolMessage(MessageType type, String clientId, String topic, String payload) {
         this.type = type;
-        this.clientId = clientId;
+        this.id = clientId;
         this.topic = topic;
         this.payload = payload;
         this.timestamp = System.currentTimeMillis();
@@ -39,7 +44,7 @@ public class ProtocolMessage {
         JSONObject json = new JSONObject();
 
         json.put("type", type != null ? type.name() : JSONObject.NULL);
-        json.put("clientId", clientId != null ? clientId : JSONObject.NULL);
+        json.put("id", id != null ? id : JSONObject.NULL);
         json.put("topic", topic != null ? topic : JSONObject.NULL);
         json.put("payload", payload != null ? payload : JSONObject.NULL);
         json.put("username", username != null ? username : JSONObject.NULL);
@@ -47,6 +52,11 @@ public class ProtocolMessage {
         json.put("signature", signature != null ? signature : JSONObject.NULL);
         json.put("timestamp", timestamp != null ? timestamp : JSONObject.NULL);
         json.put("encryptedSessionKey", encryptedSessionKey != null ? encryptedSessionKey : JSONObject.NULL);
+        json.put("targetId", targetId != null ? targetId : JSONObject.NULL);
+        json.put("targetPublicKey", targetPublicKey != null ? targetPublicKey : JSONObject.NULL);
+        json.put("encryptedTopicKey", encryptedTopicKey != null ? encryptedTopicKey : JSONObject.NULL);
+        json.put("encryptedPayload", encryptedPayload != null ? encryptedPayload : JSONObject.NULL);
+        json.put("payloadIv", payloadIv != null ? payloadIv : JSONObject.NULL);
 
         if (certificate != null) {
             JSONObject certJson = new JSONObject();
@@ -74,13 +84,18 @@ public class ProtocolMessage {
             message.setType(MessageType.valueOf(json.getString("type")));
         }
 
-        message.setClientId(json.optString("id", null));
+        message.setId(json.optString("id", null));
         message.setTopic(json.optString("topic", null));
         message.setPayload(json.optString("payload", null));
         message.setUsername(json.optString("username", null));
         message.setPassword(json.optString("password", null));
         message.setSignature(json.optString("signature", null));
         message.setEncryptedSessionKey(json.optString("encryptedSessionKey", null));
+        message.setTargetId(json.optString("targetId", null));
+        message.setTargetPublicKey(json.optString("targetPublicKey", null));
+        message.setEncryptedTopicKey(json.optString("encryptedTopicKey", null));
+        message.setEncryptedPayload(json.optString("encryptedPayload", null));
+        message.setPayloadIv(json.optString("payloadIv", null));
 
         if (!json.isNull("timestamp")) {
             message.setTimestamp(json.getLong("timestamp"));
@@ -118,12 +133,12 @@ public class ProtocolMessage {
         this.type = type;
     }
 
-    public String getClientId() {
-        return clientId;
+    public String getId() {
+        return id;
     }
 
-    public void setClientId(String clientId) {
-        this.clientId = clientId;
+    public void setId(String clientId) {
+        this.id = clientId;
     }
 
     public String getTopic() {
@@ -196,5 +211,45 @@ public class ProtocolMessage {
 
     public void setEncryptedSessionKey(String encryptedSessionKey) {
         this.encryptedSessionKey = encryptedSessionKey;
+    }
+    
+    public String getTargetId() {
+        return targetId;
+    }
+
+    public void setTargetId(String targetId) {
+        this.targetId = targetId;
+    }
+
+    public String getTargetPublicKey() {
+        return targetPublicKey;
+    }
+
+    public void setTargetPublicKey(String targetPublicKey) {
+        this.targetPublicKey = targetPublicKey;
+    }
+
+    public String getEncryptedTopicKey() {
+        return encryptedTopicKey;
+    }
+
+    public void setEncryptedTopicKey(String encryptedTopicKey) {
+        this.encryptedTopicKey = encryptedTopicKey;
+    }
+
+    public String getEncryptedPayload() {
+        return encryptedPayload;
+    }
+
+    public void setEncryptedPayload(String encryptedPayload) {
+        this.encryptedPayload = encryptedPayload;
+    }
+
+    public String getPayloadIv() {
+        return payloadIv;
+    }
+
+    public void setPayloadIv(String payloadIv) {
+        this.payloadIv = payloadIv;
     }
 }

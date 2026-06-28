@@ -27,9 +27,9 @@ public class Client {
 	private javax.crypto.SecretKey sessionKey;
 	private volatile boolean sessionReady = false;
 
-	private final Set<String> topicosInscritos = java.util.Collections.synchronizedSet(new HashSet<>());
-
-	private final Set<String> todosOsTopicos = java.util.Collections.synchronizedSet(new HashSet<>());
+	private final Set<String> subscribedTopics = java.util.Collections.synchronizedSet(new HashSet<>());
+	private final java.util.Map<String, javax.crypto.SecretKey> topicKeys = new java.util.concurrent.ConcurrentHashMap<>();
+	private final Set<String> allTopics = java.util.Collections.synchronizedSet(new HashSet<>());
 
 	public Client(String clientId) {
 		this.id = clientId;
@@ -47,12 +47,12 @@ public class Client {
 		this.gui = gui;
 	}
 
-	public Set<String> getTopicosInscritos() {
-		return topicosInscritos;
+	public Set<String> getSubscribedTopics() {
+		return subscribedTopics;
 	}
 
-	public Set<String> getTodosOsTopicos() {
-		return todosOsTopicos;
+	public Set<String> getAllTopics() {
+		return allTopics;
 	}
 
 	public void subscribe(String topic) throws IOException {
@@ -66,23 +66,41 @@ public class Client {
 	}
 
 	public void publish(String topic, String content) throws IOException {
-		if (!authenticated) {
-			System.out.println("Cliente ainda não autenticado.");
-			return;
-		}
+	    if (!authenticated) {
+	        System.out.println("Cliente ainda não autenticado.");
+	        return;
+	    }
 
-		ProtocolMessage msg = new ProtocolMessage(MessageType.PUBLISH, id, topic, content);
-		writer.send(msg);
+	    javax.crypto.SecretKey topicKey = topicKeys.get(topic);
+
+	    if (topicKey == null) {
+	        System.out.println("Chave do tópico não disponível. Aguarde compartilhamento.");
+	        if (gui != null) {
+	            gui.adicionarMensagem("[ERRO] Chave do tópico não disponível.");
+	        }
+	        return;
+	    }
+
+	    byte[] iv = broker.security.CryptoUtils.generateIV();
+	    String encryptedPayload = broker.security.CryptoUtils.encryptAES(content, topicKey, iv);
+
+	    ProtocolMessage msg = new ProtocolMessage(MessageType.PUBLISH, id, topic, null);
+	    msg.setEncryptedPayload(encryptedPayload);
+	    msg.setPayloadIv(Base64.getEncoder().encodeToString(iv));
+
+	    writer.send(msg);
 	}
 
 	public void createTopic(String topic) throws IOException {
-		if (!authenticated) {
-			System.out.println("Cliente ainda não autenticado.");
-			return;
-		}
+	    if (!authenticated) {
+	        System.out.println("Cliente ainda não autenticado.");
+	        return;
+	    }
 
-		ProtocolMessage msg = new ProtocolMessage(MessageType.CREATE_TOPIC, id, topic, null);
-		writer.send(msg);
+	    ensureTopicKey(topic);
+
+	    ProtocolMessage msg = new ProtocolMessage(MessageType.CREATE_TOPIC, id, topic, null);
+	    writer.send(msg);
 	}
 
 	public void unsubscribe(String topic) throws IOException {
@@ -176,14 +194,34 @@ public class Client {
 					switch (msg.getType()) {
 
 					case DELIVER:
-						String texto = "[" + msg.getTopic() + "] " + msg.getClientId() + ": " + msg.getPayload();
+						javax.crypto.SecretKey topicKey = topicKeys.get(msg.getTopic());
 
-						System.out.println(texto);
+					    if (topicKey == null) {
+					        String aviso = "[ERRO] Mensagem recebida do tópico " + msg.getTopic()
+					                + ", mas a chave do tópico não está disponível.";
+					        System.out.println(aviso);
 
-						if (gui != null) {
-							gui.adicionarMensagem(texto);
-						}
-						break;
+					        if (gui != null) {
+					            gui.adicionarMensagem(aviso);
+					        }
+					        break;
+					    }
+
+					    byte[] iv = Base64.getDecoder().decode(msg.getPayloadIv());
+					    String textoDecifrado = broker.security.CryptoUtils.decryptAES(
+					            msg.getEncryptedPayload(),
+					            topicKey,
+					            iv
+					    );
+
+					    String texto = "[" + msg.getTopic() + "] " + msg.getId() + ": " + textoDecifrado;
+
+					    System.out.println(texto);
+
+					    if (gui != null) {
+					        gui.adicionarMensagem(texto);
+					    }
+					    break;
 
 					case SUCCESS:
 						System.out.println("[BROKER] " + msg.getPayload());
@@ -193,7 +231,7 @@ public class Client {
 						}
 
 						if ("Inscrição realizada com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
-							topicosInscritos.add(msg.getTopic());
+							subscribedTopics.add(msg.getTopic());
 
 							if (gui != null) {
 								gui.atualizarListaTopicos();
@@ -202,7 +240,7 @@ public class Client {
 						}
 
 						if ("Inscrição removida com sucesso.".equals(msg.getPayload()) && msg.getTopic() != null) {
-							topicosInscritos.remove(msg.getTopic());
+							subscribedTopics.remove(msg.getTopic());
 
 							if (gui != null) {
 								gui.atualizarListaTopicos();
@@ -214,6 +252,7 @@ public class Client {
 							if (gui != null) {
 								gui.adicionarMensagem("[BROKER] Tópico criado com sucesso.");
 							}
+							storeOwnTopicKeyOnBroker(msg.getTopic());
 							requestAllTopics();
 						}
 
@@ -282,7 +321,6 @@ public class Client {
 						System.out.println("Autenticado com sucesso!");
 						authenticated = true;
 
-						requestPendingMessages();
 						requestAllTopics();
 
 						if (gui != null) {
@@ -311,10 +349,10 @@ public class Client {
 						break;
 
 					case LIST_TOPICS_RESPONSE:
-						todosOsTopicos.clear();
+						allTopics.clear();
 
 						if (msg.getTopics() != null) {
-							todosOsTopicos.addAll(msg.getTopics());
+							allTopics.addAll(msg.getTopics());
 						}
 
 						if (gui != null) {
@@ -364,6 +402,64 @@ public class Client {
 					    if (gui != null) {
 					        gui.adicionarStatusLogin("[SESSAO FAIL] " + msg.getPayload());
 					    }
+					    break;
+					    
+					case TOPIC_KEY_REQUEST:
+					    javax.crypto.SecretKey myTopicKey = topicKeys.get(msg.getTopic());
+
+					    if (myTopicKey == null) {
+					        if (gui != null) {
+					            gui.adicionarMensagem("[ERRO] Você não possui a chave do tópico " + msg.getTopic());
+					        }
+					        break;
+					    }
+
+					    java.security.PublicKey targetPubKey =
+					            broker.security.CryptoUtils.publicKeyFromBase64(msg.getTargetPublicKey());
+
+					    String encryptedTopicKey = broker.security.CryptoUtils.encryptRSA(
+					            myTopicKey.getEncoded(),
+					            targetPubKey
+					    );
+
+					    ProtocolMessage share = new ProtocolMessage(
+					            MessageType.TOPIC_KEY_SHARE,
+					            id,
+					            msg.getTopic(),
+					            null
+					    );
+					    share.setTargetId(msg.getTargetId());
+					    share.setEncryptedTopicKey(encryptedTopicKey);
+
+					    writer.send(share);
+
+					    if (gui != null) {
+					        gui.adicionarMensagem("[BROKER] Chave do tópico compartilhada com " + msg.getTargetId());
+					    }
+					    break;
+					    
+					case TOPIC_KEY_SHARE:
+					    byte[] topicKeyBytes = broker.security.CryptoUtils.decryptRSA(
+					            msg.getEncryptedTopicKey(),
+					            keyPair.getPrivate()
+					    );
+
+					    javax.crypto.SecretKey receivedTopicKey =
+					            broker.security.CryptoUtils.aesKeyFromBytes(topicKeyBytes);
+
+					    topicKeys.put(msg.getTopic(), receivedTopicKey);
+
+					    if (gui != null) {
+					        gui.adicionarMensagem("[BROKER] Chave do tópico " + msg.getTopic() + " recebida.");
+					    }
+					    break;
+					    
+					case TOPIC_KEYS_SYNC_DONE:
+					    if (gui != null) {
+					        gui.adicionarMensagem("[BROKER] " + msg.getPayload());
+					    }
+
+					    requestPendingMessages();
 					    break;
 
 					default:
@@ -475,9 +571,50 @@ public class Client {
 	        );
 	        msg.setEncryptedSessionKey(encryptedSessionKey);
 
+	        // manda a troca ainda em claro
 	        writer.send(msg);
+
+	        // depois disso, o cliente já instala a chave localmente
+	        reader.setSessionKey(sessionKey);
+	        writer.setSessionKey(sessionKey);
+
 	    } catch (Exception e) {
 	        throw new RuntimeException("Erro ao estabelecer chave de sessão", e);
+	    }
+	}
+	
+	private void ensureTopicKey(String topic) {
+	    topicKeys.computeIfAbsent(topic, t -> broker.security.CryptoUtils.generateAESKey());
+	}
+	
+	private void storeOwnTopicKeyOnBroker(String topic) {
+	    try {
+	        javax.crypto.SecretKey myTopicKey = topicKeys.get(topic);
+
+	        if (myTopicKey == null) {
+	            return;
+	        }
+
+	        java.security.PublicKey myPublicKey =
+	                broker.security.CryptoUtils.publicKeyFromBase64(getPublicKeyString());
+
+	        String encryptedTopicKey = broker.security.CryptoUtils.encryptRSA(
+	                myTopicKey.getEncoded(),
+	                myPublicKey
+	        );
+
+	        ProtocolMessage share = new ProtocolMessage(
+	                MessageType.TOPIC_KEY_SHARE,
+	                id,
+	                topic,
+	                null
+	        );
+	        share.setTargetId(id);
+	        share.setEncryptedTopicKey(encryptedTopicKey);
+
+	        writer.send(share);
+	    } catch (Exception e) {
+	        throw new RuntimeException("Erro ao armazenar a própria chave do tópico no broker", e);
 	    }
 	}
 }

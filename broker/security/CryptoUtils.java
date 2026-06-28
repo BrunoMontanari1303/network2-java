@@ -13,6 +13,14 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.security.SecureRandom;
+import java.util.Base64;
+
 public class CryptoUtils {
 
     public static String sign(String data, PrivateKey privateKey) {
@@ -84,5 +92,36 @@ public class CryptoUtils {
 
     public static SecretKey aesKeyFromBytes(byte[] keyBytes) {
         return new SecretKeySpec(keyBytes, "AES");
+    }
+
+    public static byte[] generateIV() {
+        byte[] iv = new byte[12];
+        new SecureRandom().nextBytes(iv);
+        return iv;
+    }
+
+    public static String encryptAES(String plaintext, SecretKey key, byte[] iv) {
+        try {
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+            cipher.init(Cipher.ENCRYPT_MODE, key, spec);
+            byte[] encrypted = cipher.doFinal(plaintext.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(encrypted);
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao cifrar com AES", e);
+        }
+    }
+
+    public static String decryptAES(String base64Ciphertext, SecretKey key, byte[] iv) {
+        try {
+            byte[] encryptedBytes = Base64.getDecoder().decode(base64Ciphertext);
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            GCMParameterSpec spec = new GCMParameterSpec(128, iv);
+            cipher.init(Cipher.DECRYPT_MODE, key, spec);
+            byte[] decrypted = cipher.doFinal(encryptedBytes);
+            return new String(decrypted, java.nio.charset.StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new RuntimeException("Erro ao decifrar com AES", e);
+        }
     }
 }

@@ -38,5 +38,9 @@ public enum MessageType {
     
     SESSION_KEY_EXCHANGE,
     SESSION_KEY_OK,
-    SESSION_KEY_FAIL
+    SESSION_KEY_FAIL,
+    
+    TOPIC_KEY_REQUEST,
+    TOPIC_KEY_SHARE,
+    TOPIC_KEYS_SYNC_DONE,
 }

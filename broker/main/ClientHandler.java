@@ -156,6 +156,10 @@ public class ClientHandler implements Runnable {
             case DISCONNECT:
                 handleDisconnect();
                 break;
+                
+            case TOPIC_KEY_SHARE:
+                handleTopicKeyShare(message);
+                break;
 
             default:
                 sendError("Operacao nao suportada pelo broker.");
@@ -333,6 +337,9 @@ public class ClientHandler implements Runnable {
         );
         response.setTimestamp(System.currentTimeMillis());
         send(response);
+
+        // reenvia as topicKeys cifradas já salvas para esse cliente
+        sendStoredTopicKeysToClient(this.id);
     }
 
     private boolean validateClientCertificate(Certificate cert) {
@@ -369,7 +376,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        boolean created = topicRegistry.createTopic(topic);
+        boolean created = topicRegistry.createTopic(topic, id);
 
         if (created) {
             sendSuccess(topic, "Tópico criado com sucesso.");
@@ -390,6 +397,7 @@ public class ClientHandler implements Runnable {
 
         if (subscribed) {
             sendSuccess(topic, "Inscrição realizada com sucesso.");
+            notifyTopicOwnerToShareKey(topic, id);
         } else {
             sendError(topic, "Topico nao existe.");
         }
@@ -488,10 +496,50 @@ public class ClientHandler implements Runnable {
             this.sessionKey = broker.security.CryptoUtils.aesKeyFromBytes(aesKeyBytes);
             this.sessionReady = true;
 
+            // ativa a cifragem do canal do lado do broker
+            reader.setSessionKey(sessionKey);
+            writer.setSessionKey(sessionKey);
+
             sendSimple(MessageType.SESSION_KEY_OK, "broker", "Chave de sessao estabelecida.");
         } catch (Exception e) {
             sendSimple(MessageType.SESSION_KEY_FAIL, "broker", "Falha ao processar chave de sessao.");
             closeConnection();
+        }
+    }
+    
+    private void handleTopicKeyShare(ProtocolMessage message) {
+        String targetId = message.getTargetId();
+
+        if (targetId == null || targetId.isBlank()) {
+            sendError("Destino da chave do topico ausente.");
+            return;
+        }
+
+        if (message.getEncryptedTopicKey() == null || message.getEncryptedTopicKey().isBlank()) {
+            sendError("Chave do topico cifrada ausente.");
+            return;
+        }
+
+        topicRegistry.storeEncryptedTopicKey(
+                message.getTopic(),
+                targetId,
+                message.getEncryptedTopicKey()
+        );
+
+        ClientHandler targetHandler = topicRegistry.getOnlineClient(targetId);
+
+        if (targetHandler != null) {
+            ProtocolMessage forward = new ProtocolMessage(
+                    MessageType.TOPIC_KEY_SHARE,
+                    message.getId(),
+                    message.getTopic(),
+                    null
+            );
+
+            forward.setEncryptedTopicKey(message.getEncryptedTopicKey());
+            forward.setTimestamp(System.currentTimeMillis());
+
+            targetHandler.send(forward);
         }
     }
 
@@ -526,6 +574,32 @@ public class ClientHandler implements Runnable {
         response.setTimestamp(System.currentTimeMillis());
         send(response);
     }
+    
+    private void sendStoredTopicKeysToClient(String userId) {
+        java.util.Map<String, String> keys = topicRegistry.getStoredEncryptedTopicKeys(userId);
+
+        for (java.util.Map.Entry<String, String> entry : keys.entrySet()) {
+            ProtocolMessage msg = new ProtocolMessage(
+                    MessageType.TOPIC_KEY_SHARE,
+                    "broker",
+                    entry.getKey(),
+                    null
+            );
+
+            msg.setEncryptedTopicKey(entry.getValue());
+            msg.setTimestamp(System.currentTimeMillis());
+            send(msg);
+        }
+
+        ProtocolMessage done = new ProtocolMessage(
+                MessageType.TOPIC_KEYS_SYNC_DONE,
+                "broker",
+                null,
+                "Sincronizacao de chaves de topicos concluida."
+        );
+        done.setTimestamp(System.currentTimeMillis());
+        send(done);
+    }
 
     private void closeConnection() {
         running = false;
@@ -537,7 +611,35 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    public String getClientId() {
+    public String getId() {
         return id;
+    }
+    
+    private void notifyTopicOwnerToShareKey(String topic, String newSubscriberId) {
+        String ownerId = topicRegistry.getTopicOwner(topic);
+
+        if (ownerId == null || ownerId.equals(newSubscriberId)) {
+            return;
+        }
+
+        ClientHandler ownerHandler = topicRegistry.getOnlineClient(ownerId);
+        UserAccount subscriberAccount = userRegistry.findByUsername(newSubscriberId);
+
+        if (ownerHandler == null || subscriberAccount == null) {
+            return;
+        }
+
+        ProtocolMessage request = new ProtocolMessage(
+                MessageType.TOPIC_KEY_REQUEST,
+                "broker",
+                topic,
+                "Compartilhe a chave do tópico com o novo inscrito."
+        );
+
+        request.setTargetId(newSubscriberId);
+        request.setTargetPublicKey(subscriberAccount.getPublicKey());
+        request.setTimestamp(System.currentTimeMillis());
+
+        ownerHandler.send(request);
     }
 }

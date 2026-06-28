@@ -296,7 +296,7 @@ public class ClientGUI extends JFrame {
     public void atualizarListaTopicos() {
         SwingUtilities.invokeLater(() -> {
             comboTopicos.removeAllItems();
-            Set<String> topicos = client.getTopicosInscritos();
+            Set<String> topicos = client.getSubscribedTopics();
 
             for (String topico : topicos) {
                 comboTopicos.addItem(topico);
@@ -308,7 +308,7 @@ public class ClientGUI extends JFrame {
         SwingUtilities.invokeLater(() -> {
             comboTodosTopicos.removeAllItems();
 
-            Set<String> topicos = client.getTodosOsTopicos();
+            Set<String> topicos = client.getAllTopics();
 
             for (String topico : topicos) {
                 comboTodosTopicos.addItem(topico);

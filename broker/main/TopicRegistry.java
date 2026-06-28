@@ -16,10 +16,18 @@ public class TopicRegistry {
     private final Map<String, ClientHandler> onlineClients = new ConcurrentHashMap<>();
     // Armazena mensagens pendentes para clientes offline.
     private final Map<String, Map<String, List<ProtocolMessage>>> pendingMessages = new ConcurrentHashMap<>();
+    private final Map<String, String> topicOwners = new ConcurrentHashMap<>();
+    private final Map<String, Map<String, String>> storedEncryptedTopicKeys = new ConcurrentHashMap<>();
 
 
-    public boolean createTopic(String topic) {
-        return topicSubscribers.putIfAbsent(topic, ConcurrentHashMap.newKeySet()) == null;
+    public boolean createTopic(String topic, String ownerId) {
+        boolean created = topicSubscribers.putIfAbsent(topic, ConcurrentHashMap.newKeySet()) == null;
+
+        if (created) {
+            topicOwners.put(topic, ownerId);
+        }
+
+        return created;
     }
 
     public boolean topicExists(String topic) {
@@ -43,7 +51,8 @@ public class TopicRegistry {
         if (subscribers == null) {
             return false;
         }
-
+        
+        removeStoredEncryptedTopicKey(topic, clientId);
         subscribers.remove(clientId);
         return true;
     }
@@ -93,11 +102,13 @@ public class TopicRegistry {
             // Cria a mensagem que será entregue para os inscritos.
             ProtocolMessage deliverMessage = new ProtocolMessage(
                     MessageType.DELIVER,
-                    originalMessage.getClientId(),
+                    originalMessage.getId(),
                     topic,
-                    originalMessage.getPayload()
+                    null
             );
             
+            deliverMessage.setEncryptedPayload(originalMessage.getEncryptedPayload());
+            deliverMessage.setPayloadIv(originalMessage.getPayloadIv());
             deliverMessage.setTimestamp(System.currentTimeMillis());
 
             // Verifica se o inscrito está online.
@@ -140,6 +151,34 @@ public class TopicRegistry {
         pendingMessages.remove(clientId);
         return result;
     }
+    
+    public void storeEncryptedTopicKey(String topic, String subscriberId, String encryptedTopicKey) {
+        storedEncryptedTopicKeys
+                .computeIfAbsent(subscriberId, k -> new ConcurrentHashMap<>())
+                .put(topic, encryptedTopicKey);
+    }
+
+    public Map<String, String> getStoredEncryptedTopicKeys(String subscriberId) {
+        Map<String, String> keys = storedEncryptedTopicKeys.get(subscriberId);
+
+        if (keys == null) {
+            return new ConcurrentHashMap<>();
+        }
+
+        return new ConcurrentHashMap<>(keys);
+    }
+
+    public void removeStoredEncryptedTopicKey(String topic, String subscriberId) {
+        Map<String, String> keys = storedEncryptedTopicKeys.get(subscriberId);
+
+        if (keys != null) {
+            keys.remove(topic);
+
+            if (keys.isEmpty()) {
+                storedEncryptedTopicKeys.remove(subscriberId);
+            }
+        }
+    }
 
     public Set<String> getSubscribedTopics(String clientId) {
         Set<String> result = ConcurrentHashMap.newKeySet();
@@ -157,5 +196,13 @@ public class TopicRegistry {
         java.util.List<String> topics = new java.util.ArrayList<>(topicSubscribers.keySet());
         java.util.Collections.sort(topics);
         return topics;
+    }
+    
+    public String getTopicOwner(String topic) {
+        return topicOwners.get(topic);
+    }
+
+    public ClientHandler getOnlineClient(String id) {
+        return onlineClients.get(id);
     }
 }
