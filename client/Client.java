@@ -22,10 +22,18 @@ public class Client {
 	private String id;
 	private KeyPair keyPair;
 	private ClientGUI gui;
+	private volatile boolean registerSuccess = false;
+	private volatile boolean registerFailed = false;
+	private volatile boolean loginSuccess = false;
+	private volatile boolean loginFailed = false;
+
+	private volatile String lastRegisterMessage;
+	private volatile String lastLoginMessage;
 	private volatile boolean authenticated = false;
 	private volatile boolean brokerValidated = false;
 	private javax.crypto.SecretKey sessionKey;
 	private volatile boolean sessionReady = false;
+	private java.security.PublicKey validatedBrokerPublicKey;
 
 	private final Set<String> subscribedTopics = java.util.Collections.synchronizedSet(new HashSet<>());
 	private final java.util.Map<String, javax.crypto.SecretKey> topicKeys = new java.util.concurrent.ConcurrentHashMap<>();
@@ -116,6 +124,22 @@ public class Client {
 		this.id = username;
 		ensureKeysForUser(username);
 		authenticated = false;
+		
+		if (!brokerValidated) {
+		    System.out.println("Broker ainda nao validado.");
+		    if (gui != null) {
+		        gui.adicionarStatusLogin("Broker ainda nao validado.");
+		    }
+		    return;
+		}
+
+		if (!sessionReady) {
+		    System.out.println("Sessao segura ainda nao estabelecida.");
+		    if (gui != null) {
+		        gui.adicionarStatusLogin("Sessao segura ainda nao estabelecida.");
+		    }
+		    return;
+		}
 
 		if (!sessionReady) {
 		    System.out.println("Sessao segura ainda nao estabelecida.");
@@ -146,7 +170,7 @@ public class Client {
 		ProtocolMessage msg = new ProtocolMessage(MessageType.REGISTER_REQUEST, null, null, null);
 		msg.setUsername(username);
 		msg.setPassword(password);
-		msg.setCertificate(cert);
+		msg.setCertificate(cert);			
 
 		writer.send(msg);
 	}
@@ -272,47 +296,63 @@ public class Client {
 						break;
 
 					case REGISTER_OK:
-						System.out.println("[CADASTRO] " + msg.getPayload());
+					    registerSuccess = true;
+					    registerFailed = false;
+					    lastRegisterMessage = msg.getPayload();
 
-						if (gui != null) {
-							gui.onRegisterSuccess(msg.getPayload());
-						}
-						break;
+					    System.out.println("[CADASTRO] " + msg.getPayload());
+
+					    if (gui != null) {
+					        gui.onRegisterSuccess(msg.getPayload());
+					    }
+					    break;
 
 					case REGISTER_FAIL:
-						System.out.println("[CADASTRO FAIL] " + msg.getPayload());
+					    registerSuccess = false;
+					    registerFailed = true;
+					    lastRegisterMessage = msg.getPayload();
 
-						if (gui != null) {
-							gui.onRegisterFail(msg.getPayload());
-						}
-						break;
+					    System.out.println("[CADASTRO FAIL] " + msg.getPayload());
+
+					    if (gui != null) {
+					        gui.onRegisterFail(msg.getPayload());
+					    }
+					    break;
 
 					case LOGIN_OK:
-						System.out.println("[LOGIN] " + msg.getPayload());
+					    loginSuccess = true;
+					    loginFailed = false;
+					    lastLoginMessage = msg.getPayload();
 
-						if (gui != null) {
-							gui.onLoginSuccess(msg.getPayload());
-						}
+					    System.out.println("[LOGIN] " + msg.getPayload());
 
-						if (!ClientCertificateStore.exists(id)) {
-							System.out.println("[AUTH FAIL] Certificado do cliente nao encontrado.");
-							if (gui != null) {
-								gui.onAuthFail("Certificado do cliente nao encontrado.");
-							}
-							break;
-						}
+					    if (gui != null) {
+					        gui.onLoginSuccess(msg.getPayload());
+					    }
 
-						Certificate cert = ClientCertificateStore.loadCertificate(id);
-						authenticate(cert);
-						break;
+					    if (!ClientCertificateStore.exists(id)) {
+					        System.out.println("[AUTH FAIL] Certificado do cliente nao encontrado.");
+					        if (gui != null) {
+					            gui.onAuthFail("Certificado do cliente nao encontrado.");
+					        }
+					        break;
+					    }
+
+					    Certificate cert = ClientCertificateStore.loadCertificate(id);
+					    authenticate(cert);
+					    break;
 
 					case LOGIN_FAIL:
-						System.out.println("[LOGIN FAIL] " + msg.getPayload());
+					    loginSuccess = false;
+					    loginFailed = true;
+					    lastLoginMessage = msg.getPayload();
 
-						if (gui != null) {
-							gui.onLoginFail(msg.getPayload());
-						}
-						break;
+					    System.out.println("[LOGIN FAIL] " + msg.getPayload());
+
+					    if (gui != null) {
+					        gui.onLoginFail(msg.getPayload());
+					    }
+					    break;
 
 					case AUTH_OK:
 						System.out.println("Autenticado com sucesso!");
@@ -359,29 +399,33 @@ public class Client {
 						break;
 
 					case BROKER_CERT:
-						Certificate brokerCert = msg.getCertificate();
+					    java.security.cert.X509Certificate brokerCert = parseX509Certificate(msg.getPayload());
 
-						if (validateBrokerCertificate(brokerCert)) {
-							brokerValidated = true;
-							System.out.println("[BROKER CERT] Certificado do broker validado com sucesso.");
+					    if (validateBrokerCertificate(brokerCert)) {
+					        brokerValidated = true;
+					        System.out.println("[BROKER CERT] Certificado do broker validado com sucesso.");
 
-							if (gui != null) {
-								gui.adicionarStatusLogin("[BROKER CERT OK] Broker validado com sucesso.");
-							}
+					        if (gui != null) {
+					            gui.adicionarStatusLogin("[BROKER CERT OK] Broker validado com sucesso.");
+					        }
 
-							sendBrokerCertOk();
-						} else {
-							brokerValidated = false;
-							System.out.println("[BROKER CERT FAIL] Certificado do broker invalido.");
+					        sendBrokerCertOk();
 
-							if (gui != null) {
-								gui.adicionarStatusLogin("[BROKER CERT FAIL] Certificado do broker invalido.");
-							}
+					        // inicia automaticamente a sessão segura para qualquer cliente
+					        establishSession();
 
-							sendBrokerCertFail();
-							socket.close();
-						}
-						break;
+					    } else {
+					        brokerValidated = false;
+					        System.out.println("[BROKER CERT FAIL] Certificado do broker invalido.");
+
+					        if (gui != null) {
+					            gui.adicionarStatusLogin("[BROKER CERT FAIL] Certificado do broker invalido.");
+					        }
+
+					        sendBrokerCertFail();
+					        socket.close();
+					    }
+					    break;
 						
 					case SESSION_KEY_OK:
 					    sessionReady = true;
@@ -426,6 +470,8 @@ public class Client {
 
 					    requestPendingMessages();
 					    break;
+					    
+					    
 					    					
 					default:
 						System.out.println("[INFO] Mensagem recebida: " + msg.toJson().toString());
@@ -485,47 +531,59 @@ public class Client {
 		}
 	}
 
-	private boolean validateBrokerCertificate(Certificate cert) {
-		if (cert == null) {
-			return false;
-		}
+	private boolean validateBrokerCertificate(java.security.cert.X509Certificate cert) {
+	    try {
+	        // verifica período de validade
+	        cert.checkValidity();
 
-		if (cert.getClientId() == null || cert.getClientId().isBlank()) {
-			return false;
-		}
+	        // verifica se foi assinado pela AC
+	        cert.verify(broker.security.CAStore.getPublicKey());
 
-		if (cert.getPublicKey() == null || cert.getPublicKey().isBlank()) {
-			return false;
-		}
+	        // opcional: validar o CN esperado
+	        String subject = cert.getSubjectX500Principal().getName();
+	        if (!subject.contains("CN=broker-main")) {
+	            return false;
+	        }
 
-		if (cert.getSignature() == null || cert.getSignature().isBlank()) {
-			return false;
-		}
+	        this.validatedBrokerPublicKey = cert.getPublicKey();
+	        return true;
 
-		String data = cert.getClientId() + cert.getPublicKey();
-
-		return broker.security.CryptoUtils.verify(data, cert.getSignature(), broker.security.CAStore.getPublicKey());
+	    } catch (Exception e) {
+	        return false;
+	    }
 	}
 
 	private void sendBrokerCertOk() {
-		ProtocolMessage msg = new ProtocolMessage(MessageType.BROKER_CERT_OK, id, null,
-				"Certificado do broker validado com sucesso.");
-		writer.send(msg);
+	    ProtocolMessage msg = new ProtocolMessage(
+	            MessageType.BROKER_CERT_OK,
+	            id,
+	            null,
+	            "Certificado do broker validado com sucesso."
+	    );
+	    writer.send(msg);
 	}
 
 	private void sendBrokerCertFail() {
-		ProtocolMessage msg = new ProtocolMessage(MessageType.BROKER_CERT_FAIL, id, null,
-				"Falha na validacao do certificado do broker.");
-		writer.send(msg);
+	    ProtocolMessage msg = new ProtocolMessage(
+	            MessageType.BROKER_CERT_FAIL,
+	            id,
+	            null,
+	            "Falha na validacao do certificado do broker."
+	    );
+	    writer.send(msg);
 	}
 	
 	public void establishSession() {
 	    try {
+	        if (!brokerValidated || validatedBrokerPublicKey == null) {
+	            throw new RuntimeException("Broker ainda nao validado. Nao e possivel estabelecer a sessao.");
+	        }
+
 	        this.sessionKey = broker.security.CryptoUtils.generateAESKey();
 
 	        String encryptedSessionKey = broker.security.CryptoUtils.encryptRSA(
 	                sessionKey.getEncoded(),
-	                broker.security.BrokerKeyStore.getPublicKey()
+	                validatedBrokerPublicKey
 	        );
 
 	        ProtocolMessage msg = new ProtocolMessage(
@@ -536,20 +594,73 @@ public class Client {
 	        );
 	        msg.setEncryptedSessionKey(encryptedSessionKey);
 
-	        // manda a troca ainda em claro
 	        writer.send(msg);
 
-	        // depois disso, o cliente já instala a chave localmente
 	        reader.setSessionKey(sessionKey);
 	        writer.setSessionKey(sessionKey);
 
 	    } catch (Exception e) {
-	        throw new RuntimeException("Erro ao estabelecer chave de sessão", e);
+	        throw new RuntimeException("Erro ao estabelecer chave de sessao", e);
+	    }
+	}
+		
+	private java.security.cert.X509Certificate parseX509Certificate(String pem) {
+	    try {
+	        java.io.ByteArrayInputStream input =
+	                new java.io.ByteArrayInputStream(pem.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+	        java.security.cert.CertificateFactory factory =
+	                java.security.cert.CertificateFactory.getInstance("X.509");
+
+	        return (java.security.cert.X509Certificate) factory.generateCertificate(input);
+	    } catch (Exception e) {
+	        throw new RuntimeException("Erro ao converter certificado PEM", e);
 	    }
 	}
 	
-	private void ensureTopicKey(String topic) {
-	    topicKeys.computeIfAbsent(topic, t -> broker.security.CryptoUtils.generateAESKey());
+	public boolean isBrokerValidated() {
+	    return brokerValidated;
 	}
-		
+
+	public boolean isSessionReady() {
+	    return sessionReady;
+	}
+
+	public boolean isAuthenticated() {
+	    return authenticated;
+	}
+
+	public boolean isRegisterSuccess() {
+	    return registerSuccess;
+	}
+
+	public boolean isRegisterFailed() {
+	    return registerFailed;
+	}
+
+	public boolean isLoginSuccess() {
+	    return loginSuccess;
+	}
+
+	public boolean isLoginFailed() {
+	    return loginFailed;
+	}
+
+	public String getLastRegisterMessage() {
+	    return lastRegisterMessage;
+	}
+
+	public String getLastLoginMessage() {
+	    return lastLoginMessage;
+	}
+
+	public void resetAuthFlowState() {
+	    registerSuccess = false;
+	    registerFailed = false;
+	    loginSuccess = false;
+	    loginFailed = false;
+	    lastRegisterMessage = null;
+	    lastLoginMessage = null;
+	}
+	
 }

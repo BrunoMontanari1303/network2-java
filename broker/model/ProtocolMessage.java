@@ -62,7 +62,7 @@ public class ProtocolMessage {
         
         if (certificate != null) {
             JSONObject certJson = new JSONObject();
-            certJson.put("id", certificate.getClientId());
+            certJson.put("id", certificate.getId());
             certJson.put("publicKey", certificate.getPublicKey());
             certJson.put("signature", certificate.getSignature());
             json.put("certificate", certJson);
@@ -106,7 +106,7 @@ public class ProtocolMessage {
         if (!json.isNull("certificate")) {
             JSONObject certJson = json.getJSONObject("certificate");
             Certificate cert = new Certificate(
-                    certJson.optString("clientId", null),
+                    certJson.optString("id", null),
                     certJson.optString("publicKey", null),
                     certJson.optString("signature", null)
             );

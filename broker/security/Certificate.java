@@ -9,13 +9,13 @@ public class Certificate {
     public Certificate() {
     }
 
-    public Certificate(String clientId, String publicKey, String signature) {
-        this.id = clientId;
+    public Certificate(String id, String publicKey, String signature) {
+        this.id = id;
         this.publicKey = publicKey;
         this.signature = signature;
     }
 
-    public String getClientId() {
+    public String getId() {
         return id;
     }
 
@@ -27,7 +27,7 @@ public class Certificate {
         return signature;
     }
 
-    public void setClientId(String clientId) {
+    public void setId(String clientId) {
         this.id = clientId;
     }
 

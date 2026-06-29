@@ -13,7 +13,7 @@ public class ClientCertificateStore {
             Files.createDirectories(Path.of("client_certs"));
 
             JSONObject json = new JSONObject();
-            json.put("clientId", cert.getClientId());
+            json.put("id", cert.getId());
             json.put("publicKey", cert.getPublicKey());
             json.put("signature", cert.getSignature());
 
@@ -33,9 +33,9 @@ public class ClientCertificateStore {
             JSONObject json = new JSONObject(content);
 
             return new Certificate(
-                    json.getString("clientId"),
-                    json.getString("publicKey"),
-                    json.getString("signature")
+                    json.optString("id", null),
+                    json.optString("publicKey", null),
+                    json.optString("signature", null)
             );
         } catch (Exception e) {
             throw new RuntimeException("Erro ao carregar certificado", e);

@@ -43,6 +43,13 @@ public class BrokerServer {
     }
 
     public static void main(String[] args) {
+    	String brokerPublicKeyBase64 = java.util.Base64.getEncoder().encodeToString(
+    	        broker.security.BrokerKeyStore.getPublicKey().getEncoded()
+    	);
+
+    	System.out.println("=== BROKER KEY NO SERVIDOR ===");
+    	System.out.println("Broker public key (inicio): " +
+    	        brokerPublicKeyBase64.substring(0, Math.min(60, brokerPublicKeyBase64.length())));
         new BrokerServer(5000).start();
     }
 }

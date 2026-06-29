@@ -5,7 +5,6 @@ import broker.model.ProtocolMessage;
 import broker.model.UserAccount;
 import broker.protocol.MessageReader;
 import broker.protocol.MessageWriter;
-import broker.security.BrokerKeyStore;
 import broker.security.Certificate;
 import broker.security.CryptoUtils;
 import broker.security.PasswordUtils;
@@ -31,6 +30,7 @@ public class ClientHandler implements Runnable {
     private javax.crypto.SecretKey sessionKey;
     private boolean sessionReady = false;
     private final TopicKeyBot topicKeyBot;
+    private boolean brokerValidatedByClient = false;
 
     public ClientHandler(Socket socket, TopicRegistry topicRegistry, UserRegistry userRegistry, TopicKeyBot topicKeyBot) throws IOException {
         this.socket = socket;
@@ -42,25 +42,23 @@ public class ClientHandler implements Runnable {
     }
 
     private void sendBrokerCertificate() {
-        Certificate brokerCert = broker.security.BrokerCertificateStore.loadCertificate();
+        String certPem = broker.security.BrokerCertificateStore.getCertificatePem();
 
         ProtocolMessage msg = new ProtocolMessage(
                 MessageType.BROKER_CERT,
                 "broker",
                 null,
-                "Certificado do broker"
+                certPem
         );
-        msg.setCertificate(brokerCert);
         msg.setTimestamp(System.currentTimeMillis());
-
         send(msg);
     }
     
     @Override
     public void run() {
         try {
-        	sendBrokerCertificate();
-        	
+            sendBrokerCertificate();
+
             while (running) {
                 ProtocolMessage message = reader.read();
 
@@ -68,7 +66,25 @@ public class ClientHandler implements Runnable {
                     running = false;
                     break;
                 }
-                
+
+                // 1) primeiro: cliente precisa validar o certificado do broker
+                if (!brokerValidatedByClient) {
+                    if (message.getType() == MessageType.BROKER_CERT_OK) {
+                        brokerValidatedByClient = true;
+                        continue;
+                    }
+
+                    if (message.getType() == MessageType.BROKER_CERT_FAIL) {
+                        closeConnection();
+                        break;
+                    }
+
+                    sendError("Certificado do broker ainda nao validado pelo cliente.");
+                    closeConnection();
+                    break;
+                }
+
+                // 2) depois: estabelecer sessão segura
                 if (!sessionReady) {
                     if (message.getType() == MessageType.SESSION_KEY_EXCHANGE) {
                         handleSessionKeyExchange(message);
@@ -80,6 +96,7 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
+                // 3) depois: login
                 if (!loginOk) {
                     if (message.getType() == MessageType.REGISTER_REQUEST) {
                         handleRegister(message);
@@ -96,6 +113,7 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
+                // 4) depois: autenticação do cliente
                 if (id == null) {
                     if (message.getType() == MessageType.AUTH_REQUEST) {
                         handleAuthRequest(message);
@@ -112,6 +130,7 @@ public class ClientHandler implements Runnable {
                     break;
                 }
 
+                // 5) operação normal
                 processMessage(message);
             }
 
@@ -193,7 +212,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        if (!username.equals(cert.getClientId())) {
+        if (!username.equals(cert.getId())) {
             sendSimple(MessageType.REGISTER_FAIL, "broker", "Usuario e certificado nao correspondem.");
             return;
         }
@@ -260,7 +279,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        UserAccount account = userRegistry.findByUsername(cert.getClientId());
+        UserAccount account = userRegistry.findByUsername(cert.getId());
 
         if (account == null) {
             sendAuthFail("Conta nao encontrada.");
@@ -312,7 +331,7 @@ public class ClientHandler implements Runnable {
             return;
         }
 
-        String id = pendingCertificate.getClientId();
+        String id = pendingCertificate.getId();
 
         if (id == null || id.isBlank()) {
             sendAuthFail("ClientId invalido.");
@@ -346,28 +365,34 @@ public class ClientHandler implements Runnable {
 
     private boolean validateClientCertificate(Certificate cert) {
         if (cert == null) {
+            System.out.println("[VALIDATE CERT] cert null");
             return false;
         }
 
-        if (cert.getClientId() == null || cert.getClientId().isBlank()) {
+        if (cert.getId() == null || cert.getId().isBlank()) {
+            System.out.println("[VALIDATE CERT] id vazio");
             return false;
         }
 
         if (cert.getPublicKey() == null || cert.getPublicKey().isBlank()) {
+            System.out.println("[VALIDATE CERT] publicKey vazia");
             return false;
         }
 
         if (cert.getSignature() == null || cert.getSignature().isBlank()) {
+            System.out.println("[VALIDATE CERT] signature vazia");
             return false;
         }
 
-        String data = cert.getClientId() + cert.getPublicKey();
-
-        return CryptoUtils.verify(
+        String data = cert.getId() + cert.getPublicKey();
+      
+        boolean valid = broker.security.CryptoUtils.verify(
                 data,
                 cert.getSignature(),
-                BrokerKeyStore.getPublicKey()
+                broker.security.BrokerKeyStore.getPublicKey()
         );
+       
+        return valid;
     }
 
     private void handleCreateTopic(ProtocolMessage message) {
@@ -679,7 +704,7 @@ public class ClientHandler implements Runnable {
         done.setTimestamp(System.currentTimeMillis());
         send(done);
     }
-
+   
     private void closeConnection() {
         running = false;
 

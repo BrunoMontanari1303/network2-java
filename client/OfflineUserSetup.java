@@ -25,6 +25,8 @@ public class OfflineUserSetup {
                 KeyPair keyPair = generator.generateKeyPair();
                 ClientKeyStore.saveKeyPair(username, keyPair);
                 System.out.println("Par de chaves gerado para " + username);
+            } else {
+                System.out.println("Par de chaves ja existe para " + username);
             }
 
             KeyPair keyPair = ClientKeyStore.loadKeyPair(username);
@@ -36,6 +38,7 @@ public class OfflineUserSetup {
             ClientCertificateStore.saveCertificate(username, cert);
 
             System.out.println("Certificado offline gerado para " + username);
+
         } catch (Exception e) {
             e.printStackTrace();
         }
